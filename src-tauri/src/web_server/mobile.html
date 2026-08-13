@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>档案搜索</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #f8fafc; color: #1e293b; }
+  .container { max-width: 720px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.25rem; margin: 0 0 12px; }
+  .search-box { display: flex; gap: 8px; margin-bottom: 12px; }
+  input[type="text"] { flex: 1; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; outline: none; }
+  input[type="text"]:focus { border-color: #2563eb; }
+  button { padding: 10px 16px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+  button:disabled { background: #94a3b8; cursor: not-allowed; }
+  .stats { font-size: 0.875rem; color: #64748b; margin-bottom: 12px; }
+  .card { background: white; border-radius: 12px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .card-title { font-weight: 600; margin-bottom: 4px; word-break: break-all; }
+  .card-meta { font-size: 0.8rem; color: #64748b; line-height: 1.5; }
+  .tag { display: inline-block; background: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin-right: 4px; margin-top: 4px; }
+  .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; }
+  .pagination button { padding: 6px 12px; font-size: 0.875rem; }
+  .empty { text-align: center; color: #94a3b8; padding: 40px 0; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; }
+  .badge-in_stock { background: #dcfce7; color: #166534; }
+  .badge-borrowed { background: #fef3c7; color: #92400e; }
+  .badge-damaged { background: #ffedd5; color: #9a3412; }
+  .badge-destroyed { background: #f1f5f9; color: #475569; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>档案搜索</h1>
+  <div class="search-box">
+    <input type="text" id="q" placeholder="输入编号、名称、档案盒或位置" onkeydown="if(event.key==='Enter') search(1)">
+    <button onclick="search(1)">搜索</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div id="results"></div>
+  <div class="pagination" id="pagination"></div>
+</div>
+<script>
+  let currentPage = 1;
+  let currentQuery = '';
+  async function search(page) {
+    const q = document.getElementById('q').value.trim();
+    currentQuery = q;
+    currentPage = page;
+    try {
+      const res = await fetch(`/api/archives/search?q=${encodeURIComponent(q)}&page=${page}&per_page=20`);
+      if (!res.ok) throw new Error('查询失败');
+      const data = await res.json();
+      render(data);
+    } catch (e) {
+      document.getElementById('results').innerHTML = `<div class="empty">加载失败：${escapeHtml(e.message)}</div>`;
+      document.getElementById('pagination').innerHTML = '';
+    }
+  }
+  function render(data) {
+    document.getElementById('stats').textContent = `共 ${data.total || 0} 条，第 ${data.page || 1} 页`;
+    const container = document.getElementById('results');
+    container.innerHTML = '';
+    if (!data.items || data.items.length === 0) {
+      container.innerHTML = '<div class="empty">暂无档案</div>';
+      document.getElementById('pagination').innerHTML = '';
+      return;
+    }
+    for (const item of data.items) {
+      const a = item.archive;
+      const tags = (item.tags || []).map(t => `<span class="tag">${escapeHtml(t.name)}</span>`).join('');
+      container.innerHTML += `
+        <div class="card">
+          <div class="card-title">${escapeHtml(a.code)} ${escapeHtml(a.title)}</div>
+          <div class="card-meta">
+            档案盒：${escapeHtml(a.box_name || '-')} · 位置：${escapeHtml(a.location || '-')} · 保管人：${escapeHtml(item.keeper?.name || '-')}<br>
+            状态：<span class="badge badge-${a.status}">${statusText(a.status)}</span> · 数量：${a.quantity}
+          </div>
+          ${tags ? `<div>${tags}</div>` : ''}
+        </div>
+      `;
+    }
+    const totalPages = Math.max(1, Math.ceil((data.total || 0) / (data.per_page || 20)));
+    let html = '';
+    if (currentPage > 1) html += `<button onclick="search(${currentPage - 1})">上一页</button>`;
+    html += `<span>${currentPage} / ${totalPages}</span>`;
+    if (currentPage < totalPages) html += `<button onclick="search(${currentPage + 1})">下一页</button>`;
+    document.getElementById('pagination').innerHTML = html;
+  }
+  function statusText(s) {
+    const map = { in_stock: '在库', borrowed: '借出', damaged: '损坏', destroyed: '销毁' };
+    return map[s] || s;
+  }
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  search(1);
+</script>
+</body>
+</html>
