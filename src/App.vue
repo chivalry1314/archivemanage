@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { getDashboardStats, listMembers, listTasks, getArchiveStats, listArchives, listArchiveBorrows, listArchiveTags } from "./api";
 import { useAppStore } from "./stores/app";
 import { listen } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 
 const store = useAppStore();
 const route = useRoute();
+const appVersion = ref("");
 
 const navItems = [
   { path: "/", label: "仪表盘" },
@@ -60,6 +62,12 @@ const playBeep = () => {
 onMounted(async () => {
   await refreshData();
 
+  try {
+    appVersion.value = await getVersion();
+  } catch {
+    // 浏览器预览等非 Tauri 环境忽略
+  }
+
   listen("task-reminder", (event) => {
     const payload = event.payload as any;
     if (payload.sound_enabled) {
@@ -98,7 +106,7 @@ onMounted(async () => {
         </router-link>
       </nav>
 
-      <div class="p-4 text-xs text-slate-500">v0.1.0</div>
+      <div class="p-4 text-xs text-slate-500">v{{ appVersion || "0.1.0" }}</div>
     </aside>
 
     <!-- Main -->
