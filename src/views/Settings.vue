@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { writeFile } from "@tauri-apps/plugin-fs";
 import {
   exportArchiveBorrowsCsv,
   exportArchivesCsv,
@@ -106,8 +107,14 @@ const importArchives = async () => {
   }
 };
 
-const downloadImportTemplate = () => {
+const downloadImportTemplate = async () => {
   try {
+    const path = await save({
+      filters: [{ name: "Excel", extensions: ["xlsx"] }],
+      defaultPath: "档案导入模板.xlsx",
+    });
+    if (!path) return;
+
     const data = [
       ["具体材料", "档案盒名称", "标签"],
       ["1号楼业主资料", "1号楼业主盒", "重要合同"],
@@ -119,16 +126,10 @@ const downloadImportTemplate = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
     const arrayBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "档案导入模板.xlsx";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    importStatus.value = "模板下载成功";
+    const uint8Array = new Uint8Array(arrayBuffer);
+
+    await writeFile(path as string, uint8Array);
+    importStatus.value = "模板已保存";
     setTimeout(() => (importStatus.value = ""), 3000);
   } catch (e) {
     showError(e);
