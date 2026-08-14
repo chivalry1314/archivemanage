@@ -84,7 +84,15 @@ pub fn init_db(app_dir: PathBuf) -> Result<(), String> {
     let db_path = config
         .db_path
         .clone()
-        .unwrap_or_else(|| app_dir.join("task_reminder.db"));
+        .unwrap_or_else(|| app_dir.join("archivemanage.db"));
+
+    // Migrate from old default database name
+    if !db_path.exists() {
+        let old_path = app_dir.join("task_reminder.db");
+        if old_path.exists() {
+            let _ = fs::rename(&old_path, &db_path);
+        }
+    }
 
     set_active_db(db_path)?;
     Ok(())

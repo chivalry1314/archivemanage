@@ -78,7 +78,7 @@ const changeDbPath = async () => {
   try {
     const path = await save({
       filters: [{ name: "SQLite", extensions: ["db"] }],
-      defaultPath: "task_reminder.db",
+      defaultPath: "archivemanage.db",
     });
     if (!path) return;
 

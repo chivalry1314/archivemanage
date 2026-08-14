@@ -1470,7 +1470,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis();
-        let dir = std::env::temp_dir().join(format!("task_reminder_test_{}", ts));
+        let dir = std::env::temp_dir().join(format!("archivemanage_test_{}", ts));
         std::fs::create_dir_all(&dir).unwrap();
         init_db(dir).unwrap();
 

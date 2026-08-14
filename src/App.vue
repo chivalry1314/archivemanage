@@ -68,7 +68,7 @@ onMounted(async () => {
     // 浏览器预览等非 Tauri 环境忽略
   }
 
-  listen("task-reminder", (event) => {
+  listen("archivemanage", (event) => {
     const payload = event.payload as any;
     if (payload.sound_enabled) {
       playBeep();

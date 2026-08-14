@@ -127,7 +127,7 @@ fn notify_task_instances(
             .show();
 
         let _ = app_handle.emit(
-            "task-reminder",
+            "archivemanage",
             serde_json::json!({
                 "instance_id": instance_id,
                 "title": title,
