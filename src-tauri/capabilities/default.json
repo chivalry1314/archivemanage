@@ -16,8 +16,9 @@
     "process:default",
     "process:allow-restart",
     "fs:default",
+    "fs:write-all",
     {
-      "identifier": "fs:allow-write",
+      "identifier": "fs:allow-write-file",
       "allow": [{ "path": "**" }]
     }
   ]
