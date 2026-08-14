@@ -28,6 +28,7 @@ export default defineConfig({
             { text: '任务管理', link: '/guide/tasks' },
             { text: '人员管理', link: '/guide/members' },
             { text: '档案管理', link: '/guide/archives' },
+            { text: '档案盒维护', link: '/guide/archive-boxes' },
             { text: '档案分类', link: '/guide/archive-categories' },
             { text: '档案标签', link: '/guide/archive-tags' },
             { text: '设置', link: '/guide/settings' },
