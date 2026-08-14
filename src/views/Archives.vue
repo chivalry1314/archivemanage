@@ -19,6 +19,8 @@ import {
   updateArchiveBorrow,
   updateArchiveStatus,
 } from "../api";
+import ArchiveBoxSelector from "../components/ArchiveBoxSelector.vue";
+import ArchiveBoxAiAnalyzer from "../components/ArchiveBoxAiAnalyzer.vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import Pagination from "../components/Pagination.vue";
@@ -78,6 +80,7 @@ const archiveForm = ref({
   title: "",
   category_id: null as number | null,
   location: "",
+  archive_box_id: null as number | null,
   box_name: "",
   file_path: "",
   source_file_path: "",
@@ -87,6 +90,8 @@ const archiveForm = ref({
   photos: "",
   tag_ids: [] as number[],
 });
+const showBoxSelector = ref(false);
+const showAiAnalyzer = ref(false);
 
 const borrowForm = ref({
   archive_id: 0,
@@ -111,6 +116,7 @@ const resetArchiveForm = () => {
     title: "",
     category_id: null,
     location: "",
+    archive_box_id: null,
     box_name: "",
     file_path: "",
     source_file_path: "",
@@ -229,9 +235,9 @@ const submitArchive = async () => {
 
   if (
     archiveForm.value.source_file_path.trim() &&
-    !archiveForm.value.box_name.trim()
+    !archiveForm.value.archive_box_id
   ) {
-    showError(new Error("上传电子文件前必须先填写档案盒名称。"));
+    showError(new Error("上传电子文件前必须先选择档案盒。"));
     return;
   }
 
@@ -239,6 +245,7 @@ const submitArchive = async () => {
     title: archiveForm.value.title.trim(),
     category_id: archiveForm.value.category_id,
     location: archiveForm.value.location.trim() || undefined,
+    archive_box_id: archiveForm.value.archive_box_id || undefined,
     box_name: archiveForm.value.box_name.trim() || undefined,
     file_path: archiveForm.value.file_path.trim() || undefined,
     source_file_path: archiveForm.value.source_file_path.trim() || undefined,
@@ -284,6 +291,7 @@ const editArchive = (item: any) => {
     title: item.archive.title,
     category_id: item.archive.category_id,
     location: item.archive.location || "",
+    archive_box_id: item.archive.archive_box_id || null,
     box_name: item.archive.box_name || "",
     file_path: item.archive.file_path || "",
     source_file_path: "",
@@ -295,6 +303,25 @@ const editArchive = (item: any) => {
   };
   editing.value = true;
   showForm.value = true;
+};
+
+const onSelectBox = (box: any) => {
+  archiveForm.value.archive_box_id = box.id;
+  archiveForm.value.box_name = box.name;
+  // 存放位置由档案盒自动带出：优先位置，未配置则用档案盒名称
+  archiveForm.value.location = box.location || box.name || "";
+  showBoxSelector.value = false;
+};
+
+const clearSelectedBox = () => {
+  archiveForm.value.archive_box_id = null;
+  archiveForm.value.box_name = "";
+  archiveForm.value.location = "";
+};
+
+const onAiSelectBox = (box: any) => {
+  onSelectBox(box);
+  showAiAnalyzer.value = false;
 };
 
 const removeArchive = async (id: number) => {
@@ -810,10 +837,11 @@ onMounted(loadAll);
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1">存放位置</label>
               <input
-                v-model="archiveForm.location"
-                placeholder="如：档案室-A柜-3层"
-                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                :value="archiveForm.location || '未选择档案盒'"
+                readonly
+                class="w-full px-4 py-2 border rounded-lg bg-slate-50 text-slate-700 focus:outline-none"
               />
+              <p class="text-xs text-slate-400 mt-1">存放位置由档案盒自动带出，不能手动填写</p>
             </div>
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1">数量</label>
@@ -826,12 +854,41 @@ onMounted(loadAll);
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">档案盒名称 *</label>
-            <input
-              v-model="archiveForm.box_name"
-              placeholder="电子档案将按此名称创建文件夹"
-              class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label class="block text-sm font-medium text-slate-700 mb-1">档案盒 *</label>
+            <div class="flex items-center gap-3">
+              <input
+                :value="archiveForm.box_name || '未选择档案盒'"
+                readonly
+                placeholder="点击右侧按钮选择档案盒"
+                class="flex-1 px-4 py-2 border rounded-lg bg-slate-50 text-slate-700 focus:outline-none"
+              />
+              <button
+                type="button"
+                @click="showBoxSelector = true"
+                class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition text-sm"
+              >
+                选择
+              </button>
+              <button
+                type="button"
+                @click="showAiAnalyzer = true"
+                :disabled="!archiveForm.title.trim()"
+                :title="!archiveForm.title.trim() ? '请先填写档案名称' : 'AI 识别档案盒'"
+                class="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                AI 识别
+              </button>
+              <button
+                v-if="archiveForm.archive_box_id"
+                type="button"
+                @click="clearSelectedBox"
+                class="px-3 py-2 text-slate-400 hover:text-red-600 transition"
+                title="清除选择"
+              >
+                ✕
+              </button>
+            </div>
+            <p class="text-xs text-slate-400 mt-1">请到“档案盒维护”页面管理档案盒；电子文件将按档案盒名称分文件夹存放</p>
           </div>
           <div class="space-y-2">
             <label class="block text-sm font-medium text-slate-700">电子文件</label>
@@ -839,8 +896,8 @@ onMounted(loadAll);
               <button
                 type="button"
                 @click="selectElectronicFile"
-                :disabled="!archiveForm.box_name.trim()"
-                :title="!archiveForm.box_name.trim() ? '请先填写档案盒名称' : ''"
+                :disabled="!archiveForm.archive_box_id"
+                :title="!archiveForm.archive_box_id ? '请先选择档案盒' : ''"
                 class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {{ editing ? "更换文件" : "选择文件" }}
@@ -849,7 +906,7 @@ onMounted(loadAll);
                 {{ fileNameFromPath(archiveForm.source_file_path) || fileNameFromPath(archiveForm.file_path) || "未选择文件" }}
               </span>
             </div>
-            <p class="text-xs text-slate-400">文件将保存到数据库同目录下，按档案盒名称分文件夹存放；填写档案盒名称后才可选择文件</p>
+            <p class="text-xs text-slate-400">文件将保存到数据库同目录下，按档案盒名称分文件夹存放；选择档案盒后才可选择文件</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">保管人</label>
@@ -909,6 +966,21 @@ onMounted(loadAll);
         </div>
       </div>
     </div>
+
+    <ArchiveBoxSelector
+      :show="showBoxSelector"
+      :selected-id="archiveForm.archive_box_id"
+      @select="onSelectBox"
+      @close="showBoxSelector = false"
+    />
+
+    <ArchiveBoxAiAnalyzer
+      :show="showAiAnalyzer"
+      :title="archiveForm.title"
+      :category-id="archiveForm.category_id"
+      @select="onAiSelectBox"
+      @close="showAiAnalyzer = false"
+    />
 
     <!-- Borrow Form Modal -->
     <div

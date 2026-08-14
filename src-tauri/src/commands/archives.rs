@@ -6,6 +6,51 @@ use std::path::{Path, PathBuf};
 
 const UNKNOWN_CATEGORY_ID: i64 = 999_999;
 
+fn get_archive_box(
+    conn: &rusqlite::Connection,
+    archive_box_id: Option<i64>,
+) -> Result<Option<(String, Option<String>)>, String> {
+    match archive_box_id {
+        Some(id) => conn
+            .query_row(
+                "SELECT name, location FROM archive_boxes WHERE id = ?1",
+                [id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+            )
+            .map(Some)
+            .map_err(|e| e.to_string()),
+        None => Ok(None),
+    }
+}
+
+fn ensure_archive_box_by_name(
+    conn: &rusqlite::Connection,
+    name: &str,
+) -> Result<Option<i64>, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Ok(None);
+    }
+    let existing: Option<i64> = conn
+        .query_row(
+            "SELECT id FROM archive_boxes WHERE name = ?1",
+            [name],
+            |row| row.get(0),
+        )
+        .ok();
+    match existing {
+        Some(id) => Ok(Some(id)),
+        None => {
+            conn.execute(
+                "INSERT INTO archive_boxes (name) VALUES (?1)",
+                [name],
+            )
+            .map_err(|e| e.to_string())?;
+            Ok(Some(conn.last_insert_rowid()))
+        }
+    }
+}
+
 fn archive_storage_root() -> Result<PathBuf, String> {
     let db_path = current_db_path().ok_or("数据库路径未初始化")?;
     let root = db_path
@@ -505,9 +550,12 @@ fn generate_archive_code(conn: &rusqlite::Connection, category_id: i64) -> Resul
 fn archive_detail(conn: &rusqlite::Connection, id: i64) -> Result<ArchiveDetail, String> {
     let archive = conn
         .query_row(
-            "SELECT id, code, title, category_id, location, keeper_id, status, quantity, description, photos,
-                    archive_type, box_name, file_path, created_at
-             FROM archives WHERE id = ?1",
+            "SELECT a.id, a.code, a.title, a.category_id, a.location, a.keeper_id, a.status, a.quantity,
+                    a.description, a.photos, a.archive_type, a.archive_box_id, COALESCE(ab.name, a.box_name) AS box_name,
+                    a.file_path, a.created_at
+             FROM archives a
+             LEFT JOIN archive_boxes ab ON ab.id = a.archive_box_id
+             WHERE a.id = ?1",
             [id],
             |row| {
                 Ok(Archive {
@@ -522,9 +570,10 @@ fn archive_detail(conn: &rusqlite::Connection, id: i64) -> Result<ArchiveDetail,
                     description: row.get(8)?,
                     photos: row.get(9)?,
                     archive_type: row.get(10)?,
-                    box_name: row.get(11)?,
-                    file_path: row.get(12)?,
-                    created_at: row.get(13)?,
+                    archive_box_id: row.get(11)?,
+                    box_name: row.get(12)?,
+                    file_path: row.get(13)?,
+                    created_at: row.get(14)?,
                 })
             },
         )
@@ -636,20 +685,33 @@ pub fn create_archive(req: CreateArchiveRequest) -> Result<ArchiveDetail, String
         .unwrap_or("paper");
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let archive_box_id = match req.archive_box_id {
+        Some(id) => Some(id),
+        None => ensure_archive_box_by_name(&tx, req.box_name.as_deref().unwrap_or(""))?,
+    };
+
+    let box_info = get_archive_box(&tx, archive_box_id)?;
+    // 存放位置由档案盒自动带出：优先用档案盒位置，未配置则用档案盒名称
+    let location = box_info
+        .as_ref()
+        .map(|(name, loc)| loc.clone().unwrap_or_else(|| name.clone()));
+
     tx.execute(
         "INSERT INTO archives (code, title, category_id, location, keeper_id, status, quantity, description, photos,
-                               archive_type, box_name, file_path)
-         VALUES (?1, ?2, ?3, ?4, ?5, 'in_stock', ?6, ?7, ?8, ?9, ?10, ?11)",
+                               archive_type, archive_box_id, box_name, file_path)
+         VALUES (?1, ?2, ?3, ?4, ?5, 'in_stock', ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         rusqlite::params![
             code,
             req.title,
             req.category_id,
-            req.location,
+            location,
             req.keeper_id,
             req.quantity,
             req.description,
             req.photos,
             archive_type,
+            archive_box_id,
             req.box_name,
             req.file_path,
         ],
@@ -660,10 +722,11 @@ pub fn create_archive(req: CreateArchiveRequest) -> Result<ArchiveDetail, String
     attach_archive_tags(&tx, id, &req.tag_ids)?;
 
     if let Some(source) = req.source_file_path.as_deref().filter(|s| !s.is_empty()) {
-        if req.box_name.as_deref().map(|s| s.trim()).unwrap_or("").is_empty() {
-            return Err("上传电子文件前必须先填写档案盒名称。".to_string());
+        let box_name = box_info.as_ref().map(|(name, _)| name.as_str());
+        if box_name.map(|s| s.trim()).unwrap_or("").is_empty() {
+            return Err("上传电子文件前必须先选择或填写档案盒名称。".to_string());
         }
-        let relative = store_electronic_file(req.box_name.as_deref(), source)?;
+        let relative = store_electronic_file(box_name, source)?;
         tx.execute(
             "UPDATE archives SET file_path = ?1 WHERE id = ?2",
             rusqlite::params![&relative, id],
@@ -689,20 +752,33 @@ pub fn update_archive(req: UpdateArchiveRequest) -> Result<ArchiveDetail, String
         .unwrap_or("paper");
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let archive_box_id = match req.archive_box_id {
+        Some(id) => Some(id),
+        None => ensure_archive_box_by_name(&tx, req.box_name.as_deref().unwrap_or(""))?,
+    };
+
+    let box_info = get_archive_box(&tx, archive_box_id)?;
+    // 存放位置由档案盒自动带出：优先用档案盒位置，未配置则用档案盒名称
+    let location = box_info
+        .as_ref()
+        .map(|(name, loc)| loc.clone().unwrap_or_else(|| name.clone()));
+
     tx.execute(
         "UPDATE archives SET title = ?1, category_id = ?2, location = ?3, keeper_id = ?4,
                             quantity = ?5, description = ?6, photos = ?7,
-                            archive_type = ?8, box_name = ?9, file_path = ?10
-         WHERE id = ?11",
+                            archive_type = ?8, archive_box_id = ?9, box_name = ?10, file_path = ?11
+         WHERE id = ?12",
         rusqlite::params![
             req.title,
             req.category_id,
-            req.location,
+            location,
             req.keeper_id,
             req.quantity,
             req.description,
             req.photos,
             archive_type,
+            archive_box_id,
             req.box_name,
             req.file_path,
             req.id,
@@ -713,10 +789,11 @@ pub fn update_archive(req: UpdateArchiveRequest) -> Result<ArchiveDetail, String
     attach_archive_tags(&tx, req.id, &req.tag_ids)?;
 
     if let Some(source) = req.source_file_path.as_deref().filter(|s| !s.is_empty()) {
-        if req.box_name.as_deref().map(|s| s.trim()).unwrap_or("").is_empty() {
-            return Err("上传电子文件前必须先填写档案盒名称。".to_string());
+        let box_name = box_info.as_ref().map(|(name, _)| name.as_str());
+        if box_name.map(|s| s.trim()).unwrap_or("").is_empty() {
+            return Err("上传电子文件前必须先选择或填写档案盒名称。".to_string());
         }
-        let relative = store_electronic_file(req.box_name.as_deref(), source)?;
+        let relative = store_electronic_file(box_name, source)?;
         tx.execute(
             "UPDATE archives SET file_path = ?1 WHERE id = ?2",
             rusqlite::params![&relative, req.id],
@@ -1432,11 +1509,16 @@ pub fn import_archives_from_excel(path: String) -> Result<(usize, usize), String
 
     for (material, (box_name, tags)) in materials {
         let code = generate_archive_code(&tx, unknown_category_id)?;
+        let archive_box_id = ensure_archive_box_by_name(&tx, &box_name)?;
+        let box_info = get_archive_box(&tx, archive_box_id)?;
+        let location = box_info
+            .as_ref()
+            .map(|(name, loc)| loc.clone().unwrap_or_else(|| name.clone()));
         tx.execute(
             "INSERT INTO archives (code, title, category_id, location, keeper_id, status, quantity, description, photos,
-                                   archive_type, box_name, file_path)
-             VALUES (?1, ?2, ?3, ?4, ?5, 'in_stock', 1, NULL, NULL, 'paper', ?6, NULL)",
-            rusqlite::params![code, material, unknown_category_id, box_name, unknown_keeper_id, box_name],
+                                   archive_type, archive_box_id, box_name, file_path)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'in_stock', 1, NULL, NULL, 'paper', ?6, ?7, NULL)",
+            rusqlite::params![code, material, unknown_category_id, location, unknown_keeper_id, archive_box_id, box_name],
         )
         .map_err(|e| e.to_string())?;
         let archive_id = tx.last_insert_rowid();
@@ -1491,6 +1573,7 @@ mod tests {
             description: None,
             photos: None,
             archive_type: Some("paper".to_string()),
+            archive_box_id: None,
             box_name: None,
             file_path: None,
             source_file_path: None,

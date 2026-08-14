@@ -183,10 +183,11 @@ pub fn export_archives_csv() -> Result<String, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT a.code, a.title, a.box_name, ac.name,
+            "SELECT a.code, a.title, COALESCE(ab.name, a.box_name) AS box_name, ac.name,
                     GROUP_CONCAT(at.name, '、') AS tags,
                     a.location, m.name, a.status, a.quantity, a.created_at
              FROM archives a
+             LEFT JOIN archive_boxes ab ON ab.id = a.archive_box_id
              LEFT JOIN archive_categories ac ON ac.id = a.category_id
              LEFT JOIN members m ON m.id = a.keeper_id
              LEFT JOIN archive_tag_relations atr ON atr.archive_id = a.id
@@ -325,10 +326,11 @@ pub fn export_archives_xlsx() -> Result<Vec<u8>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT a.code, a.title, a.box_name, ac.name,
+            "SELECT a.code, a.title, COALESCE(ab.name, a.box_name) AS box_name, ac.name,
                     GROUP_CONCAT(at.name, '、') AS tags,
                     a.location, m.name, a.status, a.quantity, a.created_at
              FROM archives a
+             LEFT JOIN archive_boxes ab ON ab.id = a.archive_box_id
              LEFT JOIN archive_categories ac ON ac.id = a.category_id
              LEFT JOIN members m ON m.id = a.keeper_id
              LEFT JOIN archive_tag_relations atr ON atr.archive_id = a.id
@@ -489,6 +491,12 @@ pub fn export_archive_borrows_xlsx() -> Result<Vec<u8>, String> {
     }
 
     workbook.save_to_buffer().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_file_command(path: String, content: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| format!("保存文件失败：{}", e))?;
+    Ok(())
 }
 
 fn escape_csv(s: &str) -> String {

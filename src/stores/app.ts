@@ -67,6 +67,21 @@ export interface ArchiveTag {
   created_at: string;
 }
 
+export interface ArchiveBox {
+  id: number;
+  name: string;
+  location?: string;
+  note?: string;
+  created_at: string;
+}
+
+export interface ArchiveBoxSuggestion {
+  box_name: string;
+  reason: string;
+  is_existing: boolean;
+  matched_box_id?: number;
+}
+
 export interface Archive {
   id: number;
   code: string;
@@ -78,6 +93,7 @@ export interface Archive {
   quantity: number;
   description?: string;
   photos?: string;
+  archive_box_id?: number;
   box_name?: string;
   file_path?: string;
   created_at: string;
@@ -140,6 +156,7 @@ export const useAppStore = defineStore("app", () => {
   });
   const archiveCategories = ref<ArchiveCategory[]>([]);
   const archiveTags = ref<ArchiveTag[]>([]);
+  const archiveBoxes = ref<ArchiveBox[]>([]);
   const archives = ref<ArchiveDetail[]>([]);
   const archiveBorrows = ref<ArchiveBorrowDetail[]>([]);
   const archiveStats = ref<ArchiveStats>({
@@ -158,6 +175,7 @@ export const useAppStore = defineStore("app", () => {
     stats,
     archiveCategories,
     archiveTags,
+    archiveBoxes,
     archives,
     archiveBorrows,
     archiveStats,

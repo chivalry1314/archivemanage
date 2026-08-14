@@ -113,6 +113,15 @@ pub struct ArchiveCategory {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchiveBox {
+    pub id: i64,
+    pub name: String,
+    pub location: Option<String>,
+    pub note: Option<String>,
+    pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArchiveTag {
     pub id: i64,
     pub name: String,
@@ -134,6 +143,7 @@ pub struct Archive {
     pub description: Option<String>,
     pub photos: Option<String>,
     pub archive_type: String,
+    pub archive_box_id: Option<i64>,
     pub box_name: Option<String>,
     pub file_path: Option<String>,
     pub created_at: NaiveDateTime,
@@ -196,6 +206,7 @@ pub struct CreateArchiveRequest {
     pub description: Option<String>,
     pub photos: Option<String>,
     pub archive_type: Option<String>,
+    pub archive_box_id: Option<i64>,
     pub box_name: Option<String>,
     pub file_path: Option<String>,
     pub source_file_path: Option<String>,
@@ -213,10 +224,59 @@ pub struct UpdateArchiveRequest {
     pub description: Option<String>,
     pub photos: Option<String>,
     pub archive_type: Option<String>,
+    pub archive_box_id: Option<i64>,
     pub box_name: Option<String>,
     pub file_path: Option<String>,
     pub source_file_path: Option<String>,
     pub tag_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateArchiveBoxRequest {
+    pub name: String,
+    pub location: Option<String>,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateArchiveBoxRequest {
+    pub id: i64,
+    pub name: String,
+    pub location: Option<String>,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiConfig {
+    pub enabled: bool,
+    pub base_url: String,
+    pub model: String,
+    pub api_key: String,
+}
+
+impl Default for AiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_url: "https://api.siliconflow.cn/v1".to_string(),
+            model: "Qwen/Qwen2.5-7B-Instruct".to_string(),
+            api_key: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalyzeArchiveBoxRequest {
+    pub title: String,
+    pub category_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchiveBoxSuggestion {
+    pub box_name: String,
+    pub reason: String,
+    pub is_existing: bool,
+    pub matched_box_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

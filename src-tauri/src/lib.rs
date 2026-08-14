@@ -5,6 +5,8 @@ mod db;
 mod scheduler;
 mod web_server;
 
+use commands::ai::*;
+use commands::archive_boxes::*;
 use commands::archives::*;
 use commands::export::*;
 use commands::instances::*;
@@ -36,6 +38,10 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // AI
+            get_ai_config_command,
+            set_ai_config_command,
+            analyze_archive_box,
             // Members
             create_member,
             update_member,
@@ -79,6 +85,13 @@ pub fn run() {
             get_archive_borrow,
             get_archive_stats,
             import_archives_from_excel,
+            // Archive Boxes
+            create_archive_box,
+            update_archive_box,
+            delete_archive_box,
+            list_archive_boxes,
+            list_archive_boxes_paged,
+            get_archive_box,
             // Archive Tags
             create_archive_tag,
             update_archive_tag,
@@ -94,6 +107,7 @@ pub fn run() {
             export_archives_xlsx,
             export_archive_borrows_csv,
             export_archive_borrows_xlsx,
+            save_file_command,
             get_db_path,
             set_db_path_command,
             // Mobile server

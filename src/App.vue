@@ -17,6 +17,7 @@ const navItems = [
   { path: "/archives", label: "档案管理" },
   { path: "/archive-tags", label: "档案标签" },
   { path: "/archive-categories", label: "档案分类" },
+  { path: "/archive-boxes", label: "档案盒维护" },
   { path: "/settings", label: "设置" },
 ];
 

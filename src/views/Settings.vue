@@ -2,7 +2,6 @@
 import { ref, onMounted } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { writeFile } from "@tauri-apps/plugin-fs";
 import {
   exportArchiveBorrowsCsv,
   exportArchiveBorrowsXlsx,
@@ -11,12 +10,16 @@ import {
   exportInstancesCsv,
   exportInstancesJson,
   exportMemberStatsCsv,
+  getAiConfig,
   getDbPath,
   getMobileServerStatus,
   importArchivesFromExcel,
+  saveFile,
+  setAiConfig,
   setDbPath,
   startMobileServer,
   stopMobileServer,
+  type AiConfig,
   type ServerStatus,
 } from "../api";
 import { showError } from "../utils/error";
@@ -37,6 +40,14 @@ const mobileMessage = ref("");
 const archivesExportFormat = ref<"csv" | "xlsx">("csv");
 const borrowsExportFormat = ref<"csv" | "xlsx">("csv");
 
+const aiConfig = ref<AiConfig>({
+  enabled: false,
+  base_url: "https://api.siliconflow.cn/v1",
+  model: "Qwen/Qwen2.5-7B-Instruct",
+  api_key: "",
+});
+const aiStatus = ref("");
+
 onMounted(async () => {
   dbPath.value = await getDbPath();
   const saved = localStorage.getItem("pageSize");
@@ -52,6 +63,11 @@ onMounted(async () => {
   } catch (e) {
     // ignore
   }
+  try {
+    aiConfig.value = await getAiConfig();
+  } catch (e) {
+    // ignore
+  }
 });
 
 const savePageSize = () => {
@@ -60,6 +76,16 @@ const savePageSize = () => {
   localStorage.setItem("pageSize", String(value));
   settingsStatus.value = "每页条数已保存";
   setTimeout(() => (settingsStatus.value = ""), 3000);
+};
+
+const saveAiConfig = async () => {
+  try {
+    await setAiConfig(aiConfig.value);
+    aiStatus.value = "AI 配置已保存";
+    setTimeout(() => (aiStatus.value = ""), 3000);
+  } catch (e) {
+    showError(e);
+  }
 };
 
 const downloadFile = (content: string, filename: string, type: string) => {
@@ -132,7 +158,7 @@ const downloadImportTemplate = async () => {
     const arrayBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const uint8Array = new Uint8Array(arrayBuffer);
 
-    await writeFile(path as string, uint8Array);
+    await saveFile(path as string, uint8Array);
     importStatus.value = "模板已保存";
     setTimeout(() => (importStatus.value = ""), 3000);
   } catch (e) {
@@ -170,7 +196,7 @@ const exportArchives = async () => {
     });
     if (!path) return;
     const bytes = await exportArchivesXlsx();
-    await writeFile(path as string, new Uint8Array(bytes));
+    await saveFile(path as string, new Uint8Array(bytes));
   } else {
     const csv = await exportArchivesCsv();
     downloadFile(csv, `档案台账_${dateStr}.csv`, "text/csv;charset=utf-8;");
@@ -188,7 +214,7 @@ const exportArchiveBorrows = async () => {
     });
     if (!path) return;
     const bytes = await exportArchiveBorrowsXlsx();
-    await writeFile(path as string, new Uint8Array(bytes));
+    await saveFile(path as string, new Uint8Array(bytes));
   } else {
     const csv = await exportArchiveBorrowsCsv();
     downloadFile(csv, `档案借还记录_${dateStr}.csv`, "text/csv;charset=utf-8;");
@@ -389,6 +415,58 @@ const copyMobileUrl = async () => {
       </div>
       <div v-if="settingsStatus" class="mt-3 text-sm text-green-600">
         {{ settingsStatus }}
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border p-6">
+      <h3 class="font-semibold text-slate-800 mb-4">档案盒 AI 识别</h3>
+      <p class="text-sm text-slate-500 mb-4">
+        开启后，登记档案时可以使用 AI 根据档案标题和分类自动推荐最合适的档案盒。支持硅基流动等 OpenAI 兼容 API。
+      </p>
+      <div class="space-y-4">
+        <label class="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            v-model="aiConfig.enabled"
+            class="w-4 h-4"
+          />
+          启用档案盒 AI 识别
+        </label>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">API 地址</label>
+          <input
+            v-model="aiConfig.base_url"
+            placeholder="https://api.siliconflow.cn/v1"
+            class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">模型名</label>
+          <input
+            v-model="aiConfig.model"
+            placeholder="Qwen/Qwen2.5-7B-Instruct"
+            class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">API Key</label>
+          <input
+            v-model="aiConfig.api_key"
+            type="password"
+            placeholder="sk-..."
+            class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p class="text-xs text-slate-400 mt-1">API Key 仅保存在本地 config.json 中，请妥善保管。</p>
+        </div>
+        <button
+          @click="saveAiConfig"
+          class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+        >
+          保存 AI 配置
+        </button>
+      </div>
+      <div v-if="aiStatus" class="mt-3 text-sm text-green-600">
+        {{ aiStatus }}
       </div>
     </div>
 

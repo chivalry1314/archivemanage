@@ -130,4 +130,28 @@ pub const MIGRATIONS: &[(&str, &str)] = &[
 
     UPDATE archives SET archive_type = 'paper' WHERE archive_type IS NULL;
     "#),
+    ("archive_boxes", r#"
+    CREATE TABLE IF NOT EXISTS archive_boxes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        location TEXT,
+        note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    ALTER TABLE archives ADD COLUMN archive_box_id INTEGER REFERENCES archive_boxes(id) ON DELETE SET NULL;
+
+    -- Migrate existing box_name values into archive_boxes and link back.
+    INSERT OR IGNORE INTO archive_boxes (name)
+    SELECT DISTINCT TRIM(box_name) FROM archives
+    WHERE box_name IS NOT NULL AND TRIM(box_name) <> '';
+
+    UPDATE archives
+    SET archive_box_id = (
+        SELECT id FROM archive_boxes WHERE archive_boxes.name = TRIM(archives.box_name)
+    )
+    WHERE box_name IS NOT NULL AND TRIM(box_name) <> '';
+
+    CREATE INDEX IF NOT EXISTS idx_archives_box_id ON archives(archive_box_id);
+    "#),
 ];

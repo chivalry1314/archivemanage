@@ -18,6 +18,8 @@ static APP_DIR: OnceCell<PathBuf> = OnceCell::new();
 struct AppConfig {
     #[serde(default)]
     db_path: Option<PathBuf>,
+    #[serde(default)]
+    ai_config: AiConfig,
 }
 
 fn config_path() -> Option<PathBuf> {
@@ -32,7 +34,10 @@ fn load_config() -> AppConfig {
             }
         }
     }
-    AppConfig { db_path: None }
+    AppConfig {
+        db_path: None,
+        ai_config: AiConfig::default(),
+    }
 }
 
 fn save_config(config: &AppConfig) -> Result<(), String> {
@@ -122,10 +127,21 @@ pub fn current_db_path() -> Option<PathBuf> {
     DB_PATH.lock().ok()?.clone()
 }
 
+pub fn get_ai_config() -> Result<AiConfig, String> {
+    let config = load_config();
+    Ok(config.ai_config)
+}
+
+pub fn set_ai_config(ai_config: AiConfig) -> Result<(), String> {
+    let mut config = load_config();
+    config.ai_config = ai_config;
+    save_config(&config)
+}
+
 pub fn set_db_path(new_path: PathBuf, migrate: bool) -> Result<(), String> {
     let current_path = current_db_path();
 
-    if migrate {
+    if migrate && !new_path.exists() {
         if let Some(ref old) = current_path {
             if old.exists() && old != &new_path {
                 fs::copy(old, &new_path).map_err(|e| {
@@ -137,9 +153,8 @@ pub fn set_db_path(new_path: PathBuf, migrate: bool) -> Result<(), String> {
 
     set_active_db(new_path.clone())?;
 
-    let config = AppConfig {
-        db_path: Some(new_path),
-    };
+    let mut config = load_config();
+    config.db_path = Some(new_path);
     save_config(&config)?;
 
     Ok(())

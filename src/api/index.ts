@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   type ArchiveBorrowDetail,
+  type ArchiveBox,
   type ArchiveCategory,
   type ArchiveDetail,
   type ArchiveStats,
@@ -96,9 +97,67 @@ export const exportArchiveBorrowsCsv = () =>
   invoke<string>("export_archive_borrows_csv");
 export const exportArchiveBorrowsXlsx = () =>
   invoke<number[]>("export_archive_borrows_xlsx");
+export const saveFile = (path: string, content: Uint8Array) =>
+  invoke<void>("save_file_command", { path, content: Array.from(content) });
 export const getDbPath = () => invoke<string>("get_db_path");
+
+// AI
+export interface AiConfig {
+  enabled: boolean;
+  base_url: string;
+  model: string;
+  api_key: string;
+}
+
+export interface AnalyzeArchiveBoxRequest {
+  title: string;
+  category_id?: number;
+}
+
+export interface ArchiveBoxSuggestion {
+  box_name: string;
+  reason: string;
+  is_existing: boolean;
+  matched_box_id?: number;
+}
+
+export const getAiConfig = () => invoke<AiConfig>("get_ai_config_command");
+export const setAiConfig = (config: AiConfig) =>
+  invoke<void>("set_ai_config_command", { config });
+export const analyzeArchiveBox = (
+  req: AnalyzeArchiveBoxRequest,
+  existingBoxes: ArchiveBox[]
+) =>
+  invoke<ArchiveBoxSuggestion>("analyze_archive_box", {
+    req,
+    existingBoxes,
+  });
 export const setDbPath = (path: string, migrate: boolean) =>
   invoke<string>("set_db_path_command", { path, migrate });
+
+// Archive Boxes
+export interface CreateArchiveBoxRequest {
+  name: string;
+  location?: string;
+  note?: string;
+}
+
+export interface UpdateArchiveBoxRequest {
+  id: number;
+  name: string;
+  location?: string;
+  note?: string;
+}
+
+export const createArchiveBox = (req: CreateArchiveBoxRequest) =>
+  invoke<ArchiveBox>("create_archive_box", { req });
+export const updateArchiveBox = (req: UpdateArchiveBoxRequest) =>
+  invoke<ArchiveBox>("update_archive_box", { req });
+export const deleteArchiveBox = (id: number) => invoke<void>("delete_archive_box", { id });
+export const listArchiveBoxes = () => invoke<ArchiveBox[]>("list_archive_boxes");
+export const listArchiveBoxesPaged = (page: number, perPage: number, search?: string) =>
+  invoke<Paginated<ArchiveBox>>("list_archive_boxes_paged", { page, perPage, search });
+export const getArchiveBox = (id: number) => invoke<ArchiveBox>("get_archive_box", { id });
 
 // Archive Categories
 export interface CreateArchiveCategoryRequest {
@@ -159,6 +218,7 @@ export interface CreateArchiveRequest {
   quantity: number;
   description?: string;
   photos?: string;
+  archive_box_id?: number;
   box_name?: string;
   file_path?: string;
   source_file_path?: string;
@@ -174,6 +234,7 @@ export interface UpdateArchiveRequest {
   quantity: number;
   description?: string;
   photos?: string;
+  archive_box_id?: number;
   box_name?: string;
   file_path?: string;
   source_file_path?: string;
