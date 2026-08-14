@@ -179,14 +179,19 @@ pub fn export_archives_csv() -> Result<String, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
 
     let mut csv = String::from("\u{FEFF}");
-    csv.push_str("档案编号,档案名称,分类,存放位置,保管人,状态,数量,创建时间\n");
+    csv.push_str("档案编号,档案名称,档案盒名称,分类,标签,存放位置,保管人,状态,数量,创建时间\n");
 
     let mut stmt = conn
         .prepare(
-            "SELECT a.code, a.title, ac.name, a.location, m.name, a.status, a.quantity, a.created_at
+            "SELECT a.code, a.title, a.box_name, ac.name,
+                    GROUP_CONCAT(at.name, '、') AS tags,
+                    a.location, m.name, a.status, a.quantity, a.created_at
              FROM archives a
              LEFT JOIN archive_categories ac ON ac.id = a.category_id
              LEFT JOIN members m ON m.id = a.keeper_id
+             LEFT JOIN archive_tag_relations atr ON atr.archive_id = a.id
+             LEFT JOIN archive_tags at ON at.id = atr.tag_id
+             GROUP BY a.id
              ORDER BY a.created_at DESC",
         )
         .map_err(|e| e.to_string())?;
@@ -199,15 +204,17 @@ pub fn export_archives_csv() -> Result<String, String> {
                 row.get::<_, Option<String>>(2)?,
                 row.get::<_, Option<String>>(3)?,
                 row.get::<_, Option<String>>(4)?,
-                row.get::<_, String>(5)?,
-                row.get::<_, i32>(6)?,
-                row.get::<_, NaiveDateTime>(7)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
+                row.get::<_, String>(7)?,
+                row.get::<_, i32>(8)?,
+                row.get::<_, NaiveDateTime>(9)?,
             ))
         })
         .map_err(|e| e.to_string())?;
 
     for row in rows {
-        let (code, title, category, location, keeper, status, quantity, created_at) =
+        let (code, title, box_name, category, tags, location, keeper, status, quantity, created_at) =
             row.map_err(|e| e.to_string())?;
 
         let status_label = match status.as_str() {
@@ -219,10 +226,12 @@ pub fn export_archives_csv() -> Result<String, String> {
         };
 
         csv.push_str(&format!(
-            "{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{}\n",
             escape_csv(&code),
             escape_csv(&title),
+            escape_csv(&box_name.unwrap_or_default()),
             escape_csv(&category.unwrap_or_default()),
+            escape_csv(&tags.unwrap_or_default()),
             escape_csv(&location.unwrap_or_default()),
             escape_csv(&keeper.unwrap_or_default()),
             status_label,
@@ -307,7 +316,7 @@ pub fn export_archives_xlsx() -> Result<Vec<u8>, String> {
     let worksheet = workbook.add_worksheet();
     let header_format = Format::new().set_bold().set_background_color(0xD9E1F2);
 
-    let headers = ["档案编号", "档案名称", "分类", "存放位置", "保管人", "状态", "数量", "创建时间"];
+    let headers = ["档案编号", "档案名称", "档案盒名称", "分类", "标签", "存放位置", "保管人", "状态", "数量", "创建时间"];
     for (col, header) in headers.iter().enumerate() {
         worksheet
             .write_string_with_format(0, col as u16, *header, &header_format)
@@ -316,10 +325,15 @@ pub fn export_archives_xlsx() -> Result<Vec<u8>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT a.code, a.title, ac.name, a.location, m.name, a.status, a.quantity, a.created_at
+            "SELECT a.code, a.title, a.box_name, ac.name,
+                    GROUP_CONCAT(at.name, '、') AS tags,
+                    a.location, m.name, a.status, a.quantity, a.created_at
              FROM archives a
              LEFT JOIN archive_categories ac ON ac.id = a.category_id
              LEFT JOIN members m ON m.id = a.keeper_id
+             LEFT JOIN archive_tag_relations atr ON atr.archive_id = a.id
+             LEFT JOIN archive_tags at ON at.id = atr.tag_id
+             GROUP BY a.id
              ORDER BY a.created_at DESC",
         )
         .map_err(|e| e.to_string())?;
@@ -332,16 +346,18 @@ pub fn export_archives_xlsx() -> Result<Vec<u8>, String> {
                 row.get::<_, Option<String>>(2)?,
                 row.get::<_, Option<String>>(3)?,
                 row.get::<_, Option<String>>(4)?,
-                row.get::<_, String>(5)?,
-                row.get::<_, i32>(6)?,
-                row.get::<_, NaiveDateTime>(7)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
+                row.get::<_, String>(7)?,
+                row.get::<_, i32>(8)?,
+                row.get::<_, NaiveDateTime>(9)?,
             ))
         })
         .map_err(|e| e.to_string())?;
 
     let mut row_idx = 1;
     for row in rows {
-        let (code, title, category, location, keeper, status, quantity, created_at) =
+        let (code, title, box_name, category, tags, location, keeper, status, quantity, created_at) =
             row.map_err(|e| e.to_string())?;
 
         let status_label = match status.as_str() {
@@ -355,18 +371,24 @@ pub fn export_archives_xlsx() -> Result<Vec<u8>, String> {
         worksheet.write_string(row_idx, 0, &code).map_err(|e| e.to_string())?;
         worksheet.write_string(row_idx, 1, &title).map_err(|e| e.to_string())?;
         worksheet
-            .write_string(row_idx, 2, &category.unwrap_or_default())
+            .write_string(row_idx, 2, &box_name.unwrap_or_default())
             .map_err(|e| e.to_string())?;
         worksheet
-            .write_string(row_idx, 3, &location.unwrap_or_default())
+            .write_string(row_idx, 3, &category.unwrap_or_default())
             .map_err(|e| e.to_string())?;
         worksheet
-            .write_string(row_idx, 4, &keeper.unwrap_or_default())
+            .write_string(row_idx, 4, &tags.unwrap_or_default())
             .map_err(|e| e.to_string())?;
-        worksheet.write_string(row_idx, 5, status_label).map_err(|e| e.to_string())?;
-        worksheet.write_number(row_idx, 6, quantity as f64).map_err(|e| e.to_string())?;
         worksheet
-            .write_string(row_idx, 7, &created_at.format("%Y-%m-%d %H:%M").to_string())
+            .write_string(row_idx, 5, &location.unwrap_or_default())
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(row_idx, 6, &keeper.unwrap_or_default())
+            .map_err(|e| e.to_string())?;
+        worksheet.write_string(row_idx, 7, status_label).map_err(|e| e.to_string())?;
+        worksheet.write_number(row_idx, 8, quantity as f64).map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(row_idx, 9, &created_at.format("%Y-%m-%d %H:%M").to_string())
             .map_err(|e| e.to_string())?;
         row_idx += 1;
     }
