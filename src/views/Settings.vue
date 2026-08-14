@@ -17,6 +17,7 @@ import {
   type ServerStatus,
 } from "../api";
 import { showError } from "../utils/error";
+import * as XLSX from "xlsx";
 
 const dbPath = ref("");
 const exportStatus = ref("");
@@ -102,6 +103,35 @@ const importArchives = async () => {
   } catch (e) {
     showError(e);
     importStatus.value = "";
+  }
+};
+
+const downloadImportTemplate = () => {
+  try {
+    const data = [
+      ["具体材料", "档案盒名称", "标签"],
+      ["1号楼业主资料", "1号楼业主盒", "重要合同"],
+      ["消防设备清单", "消防设备盒", "2026年度"],
+      ["停车场租赁合同", "合同档案盒", "重要合同"],
+      ["电梯维保记录", "电梯档案盒", ""],
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+    const arrayBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "档案导入模板.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    importStatus.value = "模板下载成功";
+    setTimeout(() => (importStatus.value = ""), 3000);
+  } catch (e) {
+    showError(e);
   }
 };
 
@@ -237,12 +267,20 @@ const copyMobileUrl = async () => {
         从 Excel 导入档案台账。要求 Sheet1 第一行为表头（具体材料、档案盒名称、标签），第二行起为数据。
         未指定材料的标签也会创建；未指定分类的档案归入“未知分类”，保管人默认为“未知保管人”。
       </p>
-      <button
-        @click="importArchives"
-        class="px-5 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition"
-      >
-        选择 Excel 文件导入
-      </button>
+      <div class="flex flex-wrap gap-3">
+        <button
+          @click="importArchives"
+          class="px-5 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition"
+        >
+          选择 Excel 文件导入
+        </button>
+        <button
+          @click="downloadImportTemplate"
+          class="px-5 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition"
+        >
+          下载导入模板
+        </button>
+      </div>
       <div v-if="importStatus" class="mt-3 text-sm text-green-600">
         {{ importStatus }}
       </div>
