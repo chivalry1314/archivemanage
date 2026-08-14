@@ -6,6 +6,7 @@ import {
   createArchiveBorrow,
   deleteArchive,
   deleteArchiveBorrow,
+  getAiConfig,
   getArchiveFilePath,
   getArchiveStats,
   listArchiveBorrows,
@@ -92,6 +93,7 @@ const archiveForm = ref({
 });
 const showBoxSelector = ref(false);
 const showAiAnalyzer = ref(false);
+const aiEnabled = ref(false);
 
 const borrowForm = ref({
   archive_id: 0,
@@ -187,6 +189,12 @@ const loadAll = async () => {
   await loadBorrows();
   await loadStats();
   store.members = await listMembers();
+  try {
+    const cfg = await getAiConfig();
+    aiEnabled.value = cfg.enabled;
+  } catch (e) {
+    aiEnabled.value = false;
+  }
 };
 
 const loadTagTreeArchives = async () => {
@@ -870,6 +878,7 @@ onMounted(loadAll);
                 选择
               </button>
               <button
+                v-if="aiEnabled"
                 type="button"
                 @click="showAiAnalyzer = true"
                 :disabled="!archiveForm.title.trim()"

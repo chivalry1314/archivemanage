@@ -124,6 +124,8 @@ export interface ArchiveBoxSuggestion {
 export const getAiConfig = () => invoke<AiConfig>("get_ai_config_command");
 export const setAiConfig = (config: AiConfig) =>
   invoke<void>("set_ai_config_command", { config });
+export const listAiModels = (config: AiConfig) =>
+  invoke<string[]>("list_ai_models", { config });
 export const analyzeArchiveBox = (
   req: AnalyzeArchiveBoxRequest,
   existingBoxes: ArchiveBox[]

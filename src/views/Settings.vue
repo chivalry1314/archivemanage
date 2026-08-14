@@ -14,6 +14,7 @@ import {
   getDbPath,
   getMobileServerStatus,
   importArchivesFromExcel,
+  listAiModels,
   saveFile,
   setAiConfig,
   setDbPath,
@@ -47,6 +48,8 @@ const aiConfig = ref<AiConfig>({
   api_key: "",
 });
 const aiStatus = ref("");
+const aiModels = ref<string[]>([]);
+const aiModelsLoading = ref(false);
 
 onMounted(async () => {
   dbPath.value = await getDbPath();
@@ -85,6 +88,23 @@ const saveAiConfig = async () => {
     setTimeout(() => (aiStatus.value = ""), 3000);
   } catch (e) {
     showError(e);
+  }
+};
+
+const fetchAiModels = async () => {
+  if (!aiConfig.value.api_key.trim()) {
+    aiStatus.value = "请先填写 API Key";
+    return;
+  }
+  aiModelsLoading.value = true;
+  try {
+    aiModels.value = await listAiModels(aiConfig.value);
+    aiStatus.value = `已获取 ${aiModels.value.length} 个模型`;
+    setTimeout(() => (aiStatus.value = ""), 3000);
+  } catch (e) {
+    showError(e);
+  } finally {
+    aiModelsLoading.value = false;
   }
 };
 
@@ -441,14 +461,6 @@ const copyMobileUrl = async () => {
           />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">模型名</label>
-          <input
-            v-model="aiConfig.model"
-            placeholder="Qwen/Qwen2.5-7B-Instruct"
-            class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">API Key</label>
           <input
             v-model="aiConfig.api_key"
@@ -457,6 +469,33 @@ const copyMobileUrl = async () => {
             class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <p class="text-xs text-slate-400 mt-1">API Key 仅保存在本地 config.json 中，请妥善保管。</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">模型名</label>
+          <div class="flex items-center gap-3">
+            <select
+              v-model="aiConfig.model"
+              class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="" disabled>请选择或手动获取模型</option>
+              <option
+                v-if="aiConfig.model && !aiModels.includes(aiConfig.model)"
+                :value="aiConfig.model"
+              >
+                {{ aiConfig.model }}
+              </option>
+              <option v-for="m in aiModels" :key="m" :value="m">{{ m }}</option>
+            </select>
+            <button
+              type="button"
+              @click="fetchAiModels"
+              :disabled="aiModelsLoading"
+              class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition text-sm disabled:opacity-50"
+            >
+              {{ aiModelsLoading ? "获取中..." : "获取模型" }}
+            </button>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">填写 API Key 和 API 地址后，点击“获取模型”即可从服务商拉取可用模型列表。</p>
         </div>
         <button
           @click="saveAiConfig"

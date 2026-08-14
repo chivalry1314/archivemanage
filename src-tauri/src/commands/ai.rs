@@ -12,6 +12,45 @@ pub fn set_ai_config_command(config: AiConfig) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn list_ai_models(config: AiConfig) -> Result<Vec<String>, String> {
+    if config.api_key.trim().is_empty() {
+        return Err("未配置 API Key".to_string());
+    }
+    if config.base_url.trim().is_empty() {
+        return Err("未配置 API 地址".to_string());
+    }
+
+    let client = reqwest::Client::new();
+    let url = format!("{}/models", config.base_url.trim_end_matches('/'));
+
+    let res = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", config.api_key))
+        .send()
+        .await
+        .map_err(|e| format!("获取模型列表失败：{}", e))?;
+
+    if !res.status().is_success() {
+        let text = res.text().await.unwrap_or_default();
+        return Err(format!("获取模型列表接口返回错误：{}", text));
+    }
+
+    let data: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|e| format!("解析模型列表失败：{}", e))?;
+
+    let models = data["data"]
+        .as_array()
+        .ok_or("模型列表格式不正确")?
+        .iter()
+        .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
+        .collect();
+
+    Ok(models)
+}
+
+#[tauri::command]
 pub async fn analyze_archive_box(
     req: AnalyzeArchiveBoxRequest,
     existing_boxes: Vec<ArchiveBox>,

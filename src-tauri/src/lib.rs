@@ -41,6 +41,7 @@ pub fn run() {
             // AI
             get_ai_config_command,
             set_ai_config_command,
+            list_ai_models,
             analyze_archive_box,
             // Members
             create_member,
