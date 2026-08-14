@@ -120,6 +120,12 @@ pub fn set_db_path(new_path: PathBuf, migrate: bool) -> Result<(), String> {
     if migrate {
         if let Some(ref old) = current_path {
             if old.exists() && old != &new_path {
+                if new_path.exists() {
+                    return Err(format!(
+                        "目标路径 {} 已存在数据库文件，迁移会覆盖该文件。如需迁移，请先备份或删除目标文件。",
+                        new_path.display()
+                    ));
+                }
                 fs::copy(old, &new_path).map_err(|e| {
                     format!("迁移数据失败：无法从 {} 复制到 {}，错误：{}", old.display(), new_path.display(), e)
                 })?;
