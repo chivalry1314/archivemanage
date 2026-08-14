@@ -5,7 +5,9 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import {
   exportArchiveBorrowsCsv,
+  exportArchiveBorrowsXlsx,
   exportArchivesCsv,
+  exportArchivesXlsx,
   exportInstancesCsv,
   exportInstancesJson,
   exportMemberStatsCsv,
@@ -32,6 +34,8 @@ const mobilePort = ref(8421);
 const mobileStatus = ref<ServerStatus | null>(null);
 const mobileLoading = ref(false);
 const mobileMessage = ref("");
+const archivesExportFormat = ref<"csv" | "xlsx">("csv");
+const borrowsExportFormat = ref<"csv" | "xlsx">("csv");
 
 onMounted(async () => {
   dbPath.value = await getDbPath();
@@ -158,15 +162,37 @@ const exportStats = async () => {
 };
 
 const exportArchives = async () => {
-  const csv = await exportArchivesCsv();
-  downloadFile(csv, `档案台账_${new Date().toISOString().split("T")[0]}.csv`, "text/csv;charset=utf-8;");
+  const dateStr = new Date().toISOString().split("T")[0];
+  if (archivesExportFormat.value === "xlsx") {
+    const path = await save({
+      filters: [{ name: "Excel", extensions: ["xlsx"] }],
+      defaultPath: `档案台账_${dateStr}.xlsx`,
+    });
+    if (!path) return;
+    const bytes = await exportArchivesXlsx();
+    await writeFile(path as string, new Uint8Array(bytes));
+  } else {
+    const csv = await exportArchivesCsv();
+    downloadFile(csv, `档案台账_${dateStr}.csv`, "text/csv;charset=utf-8;");
+  }
   exportStatus.value = "档案台账导出成功";
   setTimeout(() => (exportStatus.value = ""), 3000);
 };
 
 const exportArchiveBorrows = async () => {
-  const csv = await exportArchiveBorrowsCsv();
-  downloadFile(csv, `档案借还记录_${new Date().toISOString().split("T")[0]}.csv`, "text/csv;charset=utf-8;");
+  const dateStr = new Date().toISOString().split("T")[0];
+  if (borrowsExportFormat.value === "xlsx") {
+    const path = await save({
+      filters: [{ name: "Excel", extensions: ["xlsx"] }],
+      defaultPath: `档案借还记录_${dateStr}.xlsx`,
+    });
+    if (!path) return;
+    const bytes = await exportArchiveBorrowsXlsx();
+    await writeFile(path as string, new Uint8Array(bytes));
+  } else {
+    const csv = await exportArchiveBorrowsCsv();
+    downloadFile(csv, `档案借还记录_${dateStr}.csv`, "text/csv;charset=utf-8;");
+  }
   exportStatus.value = "档案借还记录导出成功";
   setTimeout(() => (exportStatus.value = ""), 3000);
 };
@@ -240,21 +266,75 @@ const copyMobileUrl = async () => {
     <div class="bg-white rounded-xl shadow-sm border p-6">
       <h3 class="font-semibold text-slate-800 mb-4">档案数据导出</h3>
       <p class="text-sm text-slate-500 mb-4">
-        将档案台账和借还记录导出为 CSV 文件。
+        将档案台账和借还记录导出为 CSV 或 Excel 文件。
       </p>
-      <div class="flex flex-wrap gap-3">
-        <button
-          @click="exportArchives"
-          class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          导出档案台账 (CSV)
-        </button>
-        <button
-          @click="exportArchiveBorrows"
-          class="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-        >
-          导出借还记录 (CSV)
-        </button>
+      <div class="space-y-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="text-sm text-slate-600 w-24">档案台账</span>
+          <div class="flex items-center bg-slate-100 rounded-lg p-1">
+            <button
+              @click="archivesExportFormat = 'csv'"
+              :class="[
+                'px-3 py-1.5 text-sm rounded-md transition',
+                archivesExportFormat === 'csv'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-200',
+              ]"
+            >
+              CSV
+            </button>
+            <button
+              @click="archivesExportFormat = 'xlsx'"
+              :class="[
+                'px-3 py-1.5 text-sm rounded-md transition',
+                archivesExportFormat === 'xlsx'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-200',
+              ]"
+            >
+              Excel
+            </button>
+          </div>
+          <button
+            @click="exportArchives"
+            class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            导出档案台账
+          </button>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="text-sm text-slate-600 w-24">借还记录</span>
+          <div class="flex items-center bg-slate-100 rounded-lg p-1">
+            <button
+              @click="borrowsExportFormat = 'csv'"
+              :class="[
+                'px-3 py-1.5 text-sm rounded-md transition',
+                borrowsExportFormat === 'csv'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-200',
+              ]"
+            >
+              CSV
+            </button>
+            <button
+              @click="borrowsExportFormat = 'xlsx'"
+              :class="[
+                'px-3 py-1.5 text-sm rounded-md transition',
+                borrowsExportFormat === 'xlsx'
+                  ? 'bg-white text-slate-800 shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-200',
+              ]"
+            >
+              Excel
+            </button>
+          </div>
+          <button
+            @click="exportArchiveBorrows"
+            class="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+          >
+            导出借还记录
+          </button>
+        </div>
       </div>
     </div>
 

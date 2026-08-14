@@ -91,7 +91,9 @@ pub fn run() {
             export_instances_json,
             export_member_stats_csv,
             export_archives_csv,
+            export_archives_xlsx,
             export_archive_borrows_csv,
+            export_archive_borrows_xlsx,
             get_db_path,
             set_db_path_command,
             // Mobile server

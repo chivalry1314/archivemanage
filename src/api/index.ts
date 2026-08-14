@@ -91,8 +91,11 @@ export const exportInstancesJson = () => invoke<string>("export_instances_json")
 export const exportMemberStatsCsv = () =>
   invoke<string>("export_member_stats_csv");
 export const exportArchivesCsv = () => invoke<string>("export_archives_csv");
+export const exportArchivesXlsx = () => invoke<number[]>("export_archives_xlsx");
 export const exportArchiveBorrowsCsv = () =>
   invoke<string>("export_archive_borrows_csv");
+export const exportArchiveBorrowsXlsx = () =>
+  invoke<number[]>("export_archive_borrows_xlsx");
 export const getDbPath = () => invoke<string>("get_db_path");
 export const setDbPath = (path: string, migrate: boolean) =>
   invoke<string>("set_db_path_command", { path, migrate });

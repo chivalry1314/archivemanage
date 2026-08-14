@@ -1,5 +1,6 @@
 use crate::db::{current_db_path, db, instance_detail, set_db_path};
 use chrono::{NaiveDate, NaiveDateTime};
+use rust_xlsxwriter::{Format, Workbook};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -295,6 +296,177 @@ pub fn export_archive_borrows_csv() -> Result<String, String> {
     }
 
     Ok(csv)
+}
+
+#[tauri::command]
+pub fn export_archives_xlsx() -> Result<Vec<u8>, String> {
+    let db = db();
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    let header_format = Format::new().set_bold().set_background_color(0xD9E1F2);
+
+    let headers = ["档案编号", "档案名称", "分类", "存放位置", "保管人", "状态", "数量", "创建时间"];
+    for (col, header) in headers.iter().enumerate() {
+        worksheet
+            .write_string_with_format(0, col as u16, *header, &header_format)
+            .map_err(|e| e.to_string())?;
+    }
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT a.code, a.title, ac.name, a.location, m.name, a.status, a.quantity, a.created_at
+             FROM archives a
+             LEFT JOIN archive_categories ac ON ac.id = a.category_id
+             LEFT JOIN members m ON m.id = a.keeper_id
+             ORDER BY a.created_at DESC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, i32>(6)?,
+                row.get::<_, NaiveDateTime>(7)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut row_idx = 1;
+    for row in rows {
+        let (code, title, category, location, keeper, status, quantity, created_at) =
+            row.map_err(|e| e.to_string())?;
+
+        let status_label = match status.as_str() {
+            "in_stock" => "在库",
+            "borrowed" => "借出",
+            "damaged" => "损坏",
+            "destroyed" => "销毁",
+            _ => &status,
+        };
+
+        worksheet.write_string(row_idx, 0, &code).map_err(|e| e.to_string())?;
+        worksheet.write_string(row_idx, 1, &title).map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(row_idx, 2, &category.unwrap_or_default())
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(row_idx, 3, &location.unwrap_or_default())
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(row_idx, 4, &keeper.unwrap_or_default())
+            .map_err(|e| e.to_string())?;
+        worksheet.write_string(row_idx, 5, status_label).map_err(|e| e.to_string())?;
+        worksheet.write_number(row_idx, 6, quantity as f64).map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(row_idx, 7, &created_at.format("%Y-%m-%d %H:%M").to_string())
+            .map_err(|e| e.to_string())?;
+        row_idx += 1;
+    }
+
+    workbook.save_to_buffer().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn export_archive_borrows_xlsx() -> Result<Vec<u8>, String> {
+    let db = db();
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    let header_format = Format::new().set_bold().set_background_color(0xD9E1F2);
+
+    let headers = [
+        "档案编号",
+        "档案名称",
+        "借阅人",
+        "借阅日期",
+        "应还日期",
+        "归还日期",
+        "状态",
+        "审批人",
+        "备注",
+    ];
+    for (col, header) in headers.iter().enumerate() {
+        worksheet
+            .write_string_with_format(0, col as u16, *header, &header_format)
+            .map_err(|e| e.to_string())?;
+    }
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT a.code, a.title, mb.name, ab.borrow_date, ab.due_date, ab.return_date,
+                    ab.status, ma.name, ab.note
+             FROM archive_borrows ab
+             INNER JOIN archives a ON a.id = ab.archive_id
+             INNER JOIN members mb ON mb.id = ab.borrower_id
+             LEFT JOIN members ma ON ma.id = ab.approver_id
+             ORDER BY ab.created_at DESC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, NaiveDate>(3)?,
+                row.get::<_, NaiveDate>(4)?,
+                row.get::<_, Option<NaiveDate>>(5)?,
+                row.get::<_, String>(6)?,
+                row.get::<_, Option<String>>(7)?,
+                row.get::<_, Option<String>>(8)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut row_idx = 1;
+    for row in rows {
+        let (code, title, borrower, borrow_date, due_date, return_date, status, approver, note) =
+            row.map_err(|e| e.to_string())?;
+
+        let status_label = match status.as_str() {
+            "borrowed" => "借阅中",
+            "returned" => "已归还",
+            "overdue" => "逾期",
+            _ => &status,
+        };
+
+        worksheet.write_string(row_idx, 0, &code).map_err(|e| e.to_string())?;
+        worksheet.write_string(row_idx, 1, &title).map_err(|e| e.to_string())?;
+        worksheet.write_string(row_idx, 2, &borrower).map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(row_idx, 3, &borrow_date.format("%Y-%m-%d").to_string())
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(row_idx, 4, &due_date.format("%Y-%m-%d").to_string())
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(
+                row_idx,
+                5,
+                &return_date.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default(),
+            )
+            .map_err(|e| e.to_string())?;
+        worksheet.write_string(row_idx, 6, status_label).map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(row_idx, 7, &approver.unwrap_or_default())
+            .map_err(|e| e.to_string())?;
+        worksheet
+            .write_string(row_idx, 8, &note.unwrap_or_default())
+            .map_err(|e| e.to_string())?;
+        row_idx += 1;
+    }
+
+    workbook.save_to_buffer().map_err(|e| e.to_string())
 }
 
 fn escape_csv(s: &str) -> String {
