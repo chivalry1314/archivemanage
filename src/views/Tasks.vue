@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useAppStore } from "../stores/app";
-import { createTask, deleteTask, listTasks, updateTask, listTaskInstances, completeInstance, uncompleteInstance } from "../api";
+import {
+  createTask,
+  deleteTask,
+  listTasks,
+  updateTask,
+  listTaskInstances,
+  completeInstance,
+  uncompleteInstance,
+  exportInstancesCsv,
+  exportInstancesJson,
+  exportMemberStatsCsv,
+} from "../api";
 import Pagination from "../components/Pagination.vue";
 import RecordDetailModal from "../components/RecordDetailModal.vue";
 import { showError } from "../utils/error";
@@ -49,6 +60,7 @@ const perPage = ref(10);
 const instancePage = ref(1);
 const instanceTotal = ref(0);
 const instancePerPage = ref(10);
+const taskExportStatus = ref("");
 
 const cycleOptions = [
   { value: "monthly", label: "每月" },
@@ -190,6 +202,51 @@ const changeInstancePage = (page: number) => {
   loadInstances();
 };
 
+const downloadFile = (content: string, filename: string, type: string) => {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+const exportInstances = async () => {
+  try {
+    const csv = await exportInstancesCsv();
+    downloadFile(csv, `任务实例_${new Date().toISOString().split("T")[0]}.csv`, "text/csv;charset=utf-8;");
+    taskExportStatus.value = "任务实例导出成功";
+    setTimeout(() => (taskExportStatus.value = ""), 3000);
+  } catch (e) {
+    showError(e);
+  }
+};
+
+const exportStats = async () => {
+  try {
+    const csv = await exportMemberStatsCsv();
+    downloadFile(csv, `人员统计_${new Date().toISOString().split("T")[0]}.csv`, "text/csv;charset=utf-8;");
+    taskExportStatus.value = "人员统计导出成功";
+    setTimeout(() => (taskExportStatus.value = ""), 3000);
+  } catch (e) {
+    showError(e);
+  }
+};
+
+const exportJson = async () => {
+  try {
+    const json = await exportInstancesJson();
+    downloadFile(json, `任务数据_${new Date().toISOString().split("T")[0]}.json`, "application/json");
+    taskExportStatus.value = "JSON 导出成功";
+    setTimeout(() => (taskExportStatus.value = ""), 3000);
+  } catch (e) {
+    showError(e);
+  }
+};
+
 const cycleLabel = (type: string) => {
   const map: Record<string, string> = {
     monthly: "每月",
@@ -226,13 +283,37 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <div class="flex justify-between items-center">
-      <button
-        @click="showForm = true; resetForm();"
-        class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-      >
-        + 新建任务
-      </button>
+    <div class="flex flex-wrap justify-between items-center gap-3">
+      <div v-if="taskExportStatus" class="text-sm text-blue-600">
+        {{ taskExportStatus }}
+      </div>
+      <div class="flex-1"></div>
+      <div class="flex flex-wrap gap-2">
+        <button
+          @click="exportInstances"
+          class="px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm"
+        >
+          导出任务实例
+        </button>
+        <button
+          @click="exportStats"
+          class="px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm"
+        >
+          导出人员统计
+        </button>
+        <button
+          @click="exportJson"
+          class="px-4 py-2.5 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition text-sm"
+        >
+          导出 JSON
+        </button>
+        <button
+          @click="showForm = true; resetForm();"
+          class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+        >
+          + 新建任务
+        </button>
+      </div>
     </div>
 
     <!-- Form Modal -->

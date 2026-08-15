@@ -6,6 +6,7 @@ import {
   type ArchiveDetail,
   type ArchiveStats,
   type ArchiveTag,
+  type Contract,
   type DashboardStats,
   type Member,
   type Paginated,
@@ -322,6 +323,50 @@ export const getArchiveStats = () =>
   invoke<ArchiveStats>("get_archive_stats");
 export const importArchivesFromExcel = (path: string) =>
   invoke<[number, number]>("import_archives_from_excel", { path });
+
+// Contracts
+export interface CreateContractRequest {
+  contract_no?: string;
+  contract_name: string;
+  party_a?: string;
+  party_b?: string;
+  contact_person?: string;
+  contact_info?: string;
+  total_amount_with_tax?: number;
+  total_amount_without_tax?: number;
+  tax_amount?: number;
+  payment_cycle?: string;
+  payment_amount_with_tax?: number;
+  payment_method?: string;
+  effective_date?: string;
+  end_date?: string;
+  sign_date?: string;
+  handler_party_a?: string;
+  handler_party_b?: string;
+  remark?: string;
+}
+
+export interface UpdateContractRequest extends CreateContractRequest {
+  id: number;
+}
+
+export const createContract = (req: CreateContractRequest) =>
+  invoke<Contract>("create_contract", { req });
+export const updateContract = (req: UpdateContractRequest) =>
+  invoke<Contract>("update_contract", { req });
+export const deleteContract = (id: number) => invoke<void>("delete_contract", { id });
+export const deleteContractsBatch = (ids: number[]) =>
+  invoke<number>("delete_contracts_batch", { ids });
+export const getContract = (id: number) => invoke<Contract>("get_contract", { id });
+export const listContracts = (
+  search: string | undefined,
+  page: number,
+  perPage: number
+) => invoke<Paginated<Contract>>("list_contracts", { search, page, perPage });
+export const importContractsFromExcel = (path: string) =>
+  invoke<number>("import_contracts_from_excel", { path });
+export const exportContractsXlsx = () => invoke<number[]>("export_contracts_xlsx");
+export const exportContractsCsv = () => invoke<string>("export_contracts_csv");
 
 // Mobile server
 export interface ServerStatus {

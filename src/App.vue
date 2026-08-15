@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import { getDashboardStats, listMembers, listTasks, getArchiveStats, listArchives, listArchiveBorrows, listArchiveTags } from "./api";
+import { getDashboardStats, listMembers, listTasks, getArchiveStats, listArchives, listArchiveBorrows, listArchiveTags, listContracts } from "./api";
 import { useAppStore } from "./stores/app";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
@@ -18,6 +18,7 @@ const navItems = [
   { path: "/archive-tags", label: "档案标签" },
   { path: "/archive-categories", label: "档案分类" },
   { path: "/archive-boxes", label: "档案盒维护" },
+  { path: "/contracts", label: "合同管理" },
   { path: "/settings", label: "设置" },
 ];
 
@@ -36,6 +37,7 @@ const refreshData = async () => {
     store.archiveTags = await listArchiveTags();
     store.archives = (await listArchives(undefined, undefined, undefined, 1, perPage)).items;
     store.archiveBorrows = (await listArchiveBorrows(undefined, undefined, undefined, 1, perPage)).items;
+    store.contracts = (await listContracts(undefined, 1, perPage)).items;
   } catch (e) {
     console.error(e);
   }

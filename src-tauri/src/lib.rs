@@ -8,6 +8,7 @@ mod web_server;
 use commands::ai::*;
 use commands::archive_boxes::*;
 use commands::archives::*;
+use commands::contracts::*;
 use commands::export::*;
 use commands::instances::*;
 use commands::members::*;
@@ -106,6 +107,16 @@ pub fn run() {
             list_archive_tags,
             list_archive_tags_paged,
             list_archives_by_tag,
+            // Contracts
+            create_contract,
+            update_contract,
+            delete_contract,
+            delete_contracts_batch,
+            get_contract,
+            list_contracts,
+            import_contracts_from_excel,
+            export_contracts_xlsx,
+            export_contracts_csv,
             // Export
             export_instances_csv,
             export_instances_json,

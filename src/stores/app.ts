@@ -137,6 +137,29 @@ export interface ArchiveStats {
   destroyed_count: number;
 }
 
+export interface Contract {
+  id: number;
+  contract_no?: string;
+  contract_name: string;
+  party_a?: string;
+  party_b?: string;
+  contact_person?: string;
+  contact_info?: string;
+  total_amount_with_tax?: number;
+  total_amount_without_tax?: number;
+  tax_amount?: number;
+  payment_cycle?: string;
+  payment_amount_with_tax?: number;
+  payment_method?: string;
+  effective_date?: string;
+  end_date?: string;
+  sign_date?: string;
+  handler_party_a?: string;
+  handler_party_b?: string;
+  remark?: string;
+  created_at: string;
+}
+
 export interface Paginated<T> {
   items: T[];
   total: number;
@@ -167,6 +190,7 @@ export const useAppStore = defineStore("app", () => {
     damaged_count: 0,
     destroyed_count: 0,
   });
+  const contracts = ref<Contract[]>([]);
 
   return {
     members,
@@ -179,5 +203,6 @@ export const useAppStore = defineStore("app", () => {
     archives,
     archiveBorrows,
     archiveStats,
+    contracts,
   };
 });

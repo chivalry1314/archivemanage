@@ -154,4 +154,79 @@ pub const MIGRATIONS: &[(&str, &str)] = &[
 
     CREATE INDEX IF NOT EXISTS idx_archives_box_id ON archives(archive_box_id);
     "#),
+    ("contracts", r#"
+    CREATE TABLE IF NOT EXISTS contracts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        contract_no TEXT,
+        contract_name TEXT NOT NULL,
+        party_a TEXT,
+        party_b TEXT,
+        contact_person TEXT,
+        contact_info TEXT,
+        total_amount_with_tax REAL,
+        total_amount_without_tax REAL,
+        tax_amount REAL,
+        payment_cycle TEXT,
+        payment_amount_with_tax REAL,
+        payment_method TEXT,
+        effective_date DATE,
+        end_date DATE,
+        sign_date DATE,
+        handler_party_a TEXT,
+        handler_party_b TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_contracts_no ON contracts(contract_no);
+    CREATE INDEX IF NOT EXISTS idx_contracts_name ON contracts(contract_name);
+    "#),
+    ("contracts_amount_integer", r#"
+    CREATE TABLE IF NOT EXISTS contracts_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        contract_no TEXT,
+        contract_name TEXT NOT NULL,
+        party_a TEXT,
+        party_b TEXT,
+        contact_person TEXT,
+        contact_info TEXT,
+        total_amount_with_tax INTEGER,
+        total_amount_without_tax INTEGER,
+        tax_amount INTEGER,
+        payment_cycle TEXT,
+        payment_amount_with_tax INTEGER,
+        payment_method TEXT,
+        effective_date DATE,
+        end_date DATE,
+        sign_date DATE,
+        handler_party_a TEXT,
+        handler_party_b TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT INTO contracts_new (
+        id, contract_no, contract_name, party_a, party_b, contact_person, contact_info,
+        total_amount_with_tax, total_amount_without_tax, tax_amount, payment_cycle,
+        payment_amount_with_tax, payment_method, effective_date, end_date, sign_date,
+        handler_party_a, handler_party_b, created_at
+    )
+    SELECT
+        id, contract_no, contract_name, party_a, party_b, contact_person, contact_info,
+        CASE WHEN total_amount_with_tax IS NOT NULL THEN CAST(ROUND(total_amount_with_tax * 100) AS INTEGER) ELSE NULL END,
+        CASE WHEN total_amount_without_tax IS NOT NULL THEN CAST(ROUND(total_amount_without_tax * 100) AS INTEGER) ELSE NULL END,
+        CASE WHEN tax_amount IS NOT NULL THEN CAST(ROUND(tax_amount * 100) AS INTEGER) ELSE NULL END,
+        payment_cycle,
+        CASE WHEN payment_amount_with_tax IS NOT NULL THEN CAST(ROUND(payment_amount_with_tax * 100) AS INTEGER) ELSE NULL END,
+        payment_method, effective_date, end_date, sign_date,
+        handler_party_a, handler_party_b, created_at
+    FROM contracts;
+
+    DROP TABLE contracts;
+    ALTER TABLE contracts_new RENAME TO contracts;
+
+    CREATE INDEX IF NOT EXISTS idx_contracts_no ON contracts(contract_no);
+    CREATE INDEX IF NOT EXISTS idx_contracts_name ON contracts(contract_name);
+    "#),
+    ("contracts_remark", r#"
+    ALTER TABLE contracts ADD COLUMN remark TEXT;
+    "#),
 ];

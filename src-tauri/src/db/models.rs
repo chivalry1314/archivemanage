@@ -329,6 +329,75 @@ pub struct ArchiveStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Contract {
+    pub id: i64,
+    pub contract_no: Option<String>,
+    pub contract_name: String,
+    pub party_a: Option<String>,
+    pub party_b: Option<String>,
+    pub contact_person: Option<String>,
+    pub contact_info: Option<String>,
+    pub total_amount_with_tax: Option<i64>,
+    pub total_amount_without_tax: Option<i64>,
+    pub tax_amount: Option<i64>,
+    pub payment_cycle: Option<String>,
+    pub payment_amount_with_tax: Option<i64>,
+    pub payment_method: Option<String>,
+    pub effective_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+    pub sign_date: Option<NaiveDate>,
+    pub handler_party_a: Option<String>,
+    pub handler_party_b: Option<String>,
+    pub remark: Option<String>,
+    pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateContractRequest {
+    pub contract_no: Option<String>,
+    pub contract_name: String,
+    pub party_a: Option<String>,
+    pub party_b: Option<String>,
+    pub contact_person: Option<String>,
+    pub contact_info: Option<String>,
+    pub total_amount_with_tax: Option<i64>,
+    pub total_amount_without_tax: Option<i64>,
+    pub tax_amount: Option<i64>,
+    pub payment_cycle: Option<String>,
+    pub payment_amount_with_tax: Option<i64>,
+    pub payment_method: Option<String>,
+    pub effective_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+    pub sign_date: Option<NaiveDate>,
+    pub handler_party_a: Option<String>,
+    pub handler_party_b: Option<String>,
+    pub remark: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateContractRequest {
+    pub id: i64,
+    pub contract_no: Option<String>,
+    pub contract_name: String,
+    pub party_a: Option<String>,
+    pub party_b: Option<String>,
+    pub contact_person: Option<String>,
+    pub contact_info: Option<String>,
+    pub total_amount_with_tax: Option<i64>,
+    pub total_amount_without_tax: Option<i64>,
+    pub tax_amount: Option<i64>,
+    pub payment_cycle: Option<String>,
+    pub payment_amount_with_tax: Option<i64>,
+    pub payment_method: Option<String>,
+    pub effective_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+    pub sign_date: Option<NaiveDate>,
+    pub handler_party_a: Option<String>,
+    pub handler_party_b: Option<String>,
+    pub remark: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Paginated<T> {
     pub items: Vec<T>,
     pub total: i64,

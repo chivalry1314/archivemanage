@@ -6,9 +6,14 @@ import {
   createArchiveBorrow,
   deleteArchive,
   deleteArchiveBorrow,
+  exportArchiveBorrowsCsv,
+  exportArchiveBorrowsXlsx,
+  exportArchivesCsv,
+  exportArchivesXlsx,
   getAiConfig,
   getArchiveFilePath,
   getArchiveStats,
+  importArchivesFromExcel,
   listArchiveBorrows,
   listArchiveCategories,
   listArchiveTags,
@@ -16,14 +21,16 @@ import {
   listArchivesByTag,
   listMembers,
   returnArchiveBorrow,
+  saveFile,
   updateArchive,
   updateArchiveBorrow,
   updateArchiveStatus,
 } from "../api";
 import ArchiveBoxSelector from "../components/ArchiveBoxSelector.vue";
 import ArchiveBoxAiAnalyzer from "../components/ArchiveBoxAiAnalyzer.vue";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
+import * as XLSX from "xlsx";
 import Pagination from "../components/Pagination.vue";
 import RecordDetailModal from "../components/RecordDetailModal.vue";
 import { showError } from "../utils/error";
@@ -75,6 +82,11 @@ const tagTreeTotal = ref(0);
 const tagTreePerPage = ref(10);
 const tagTreeArchives = ref<any[]>([]);
 const selectedArchiveIds = ref<number[]>([]);
+const archivesImportStatus = ref("");
+const archivesExportStatus = ref("");
+const archivesExportFormat = ref<"csv" | "xlsx">("xlsx");
+const borrowsExportStatus = ref("");
+const borrowsExportFormat = ref<"csv" | "xlsx">("xlsx");
 
 const archiveForm = ref({
   id: 0,
@@ -291,6 +303,110 @@ const searchArchives = () => {
 const filterArchives = () => {
   archivePage.value = 1;
   loadArchives();
+};
+
+const importArchives = async () => {
+  try {
+    const path = await openDialog({
+      filters: [{ name: "Excel", extensions: ["xlsx"] }],
+      directory: false,
+      multiple: false,
+    });
+    if (!path) return;
+
+    archivesImportStatus.value = "正在导入，请稍候...";
+    const [archiveCount, tagCount] = await importArchivesFromExcel(path as string);
+    archivesImportStatus.value = `导入完成：新增 ${archiveCount} 个档案，${tagCount} 个标签`;
+    setTimeout(() => (archivesImportStatus.value = ""), 5000);
+    await loadAll();
+  } catch (e) {
+    showError(e);
+    archivesImportStatus.value = "";
+  }
+};
+
+const downloadArchiveImportTemplate = async () => {
+  try {
+    const path = await save({
+      filters: [{ name: "Excel", extensions: ["xlsx"] }],
+      defaultPath: "档案导入模板.xlsx",
+    });
+    if (!path) return;
+
+    const data = [
+      ["具体材料", "档案盒名称", "标签"],
+      ["1号楼业主资料", "1号楼业主盒", "重要合同"],
+      ["消防设备清单", "消防设备盒", "2026年度,设备"],
+      ["停车场租赁合同", "合同档案盒", "重要合同、租赁"],
+      ["电梯维保记录", "电梯档案盒", ""],
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+    const arrayBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+
+    await saveFile(path as string, new Uint8Array(arrayBuffer));
+    archivesImportStatus.value = "模板已保存";
+    setTimeout(() => (archivesImportStatus.value = ""), 3000);
+  } catch (e) {
+    showError(e);
+  }
+};
+
+const exportArchives = async () => {
+  try {
+    const dateStr = new Date().toISOString().split("T")[0];
+    if (archivesExportFormat.value === "xlsx") {
+      const path = await save({
+        filters: [{ name: "Excel", extensions: ["xlsx"] }],
+        defaultPath: `档案台账_${dateStr}.xlsx`,
+      });
+      if (!path) return;
+      const bytes = await exportArchivesXlsx();
+      await saveFile(path as string, new Uint8Array(bytes));
+    } else {
+      const csv = await exportArchivesCsv();
+      downloadFile(csv, `档案台账_${dateStr}.csv`, "text/csv;charset=utf-8;");
+    }
+    archivesExportStatus.value = "档案台账导出成功";
+    setTimeout(() => (archivesExportStatus.value = ""), 3000);
+  } catch (e) {
+    showError(e);
+  }
+};
+
+const exportBorrows = async () => {
+  try {
+    const dateStr = new Date().toISOString().split("T")[0];
+    if (borrowsExportFormat.value === "xlsx") {
+      const path = await save({
+        filters: [{ name: "Excel", extensions: ["xlsx"] }],
+        defaultPath: `档案借还记录_${dateStr}.xlsx`,
+      });
+      if (!path) return;
+      const bytes = await exportArchiveBorrowsXlsx();
+      await saveFile(path as string, new Uint8Array(bytes));
+    } else {
+      const csv = await exportArchiveBorrowsCsv();
+      downloadFile(csv, `档案借还记录_${dateStr}.csv`, "text/csv;charset=utf-8;");
+    }
+    borrowsExportStatus.value = "借还记录导出成功";
+    setTimeout(() => (borrowsExportStatus.value = ""), 3000);
+  } catch (e) {
+    showError(e);
+  }
+};
+
+const downloadFile = (content: string, filename: string, mimeType: string) => {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 };
 
 const editArchive = (item: any) => {
@@ -742,73 +858,110 @@ onMounted(loadAll);
     </div>
 
     <!-- Toolbar -->
-    <div v-if="activeTab === 'archives'" class="bg-white p-4 rounded-xl shadow-sm border flex flex-wrap gap-3 items-center">
-      <div class="flex items-center bg-slate-100 rounded-lg p-1">
-        <button
-          @click="displayMode = 'normal'"
-          :class="[
-            'px-3 py-1.5 text-sm rounded-md transition',
-            displayMode === 'normal'
-              ? 'bg-white text-slate-800 shadow-sm'
-              : 'text-slate-600 hover:bg-slate-200',
-          ]"
+    <div v-if="activeTab === 'archives'" class="bg-white p-4 rounded-xl shadow-sm border space-y-3">
+      <!-- 搜索与过滤 -->
+      <div class="flex flex-wrap gap-3 items-center">
+        <template v-if="displayMode === 'normal'">
+          <input
+            v-model="searchKeyword"
+            @input="searchArchives"
+            placeholder="搜索编号/名称/位置"
+            class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
+          />
+          <select
+            v-model="selectedCategory"
+            @change="filterArchives"
+            class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option :value="null">全部分类</option>
+            <option v-for="c in store.archiveCategories" :key="c.id" :value="c.id">
+              {{ c.name }}
+            </option>
+          </select>
+          <select
+            v-model="selectedStatus"
+            @change="filterArchives"
+            class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">全部状态</option>
+            <option v-for="s in statusOptions" :key="s.value" :value="s.value">
+              {{ s.label }}
+            </option>
+          </select>
+        </template>
+        <div class="flex-1"></div>
+        <select
+          v-model="archivesExportFormat"
+          class="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          普通
+          <option value="xlsx">Excel</option>
+          <option value="csv">CSV</option>
+        </select>
+        <button
+          @click="exportArchives"
+          class="px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm"
+        >
+          导出
         </button>
         <button
-          @click="displayMode = 'tag-tree'"
-          :class="[
-            'px-3 py-1.5 text-sm rounded-md transition',
-            displayMode === 'tag-tree'
-              ? 'bg-white text-slate-800 shadow-sm'
-              : 'text-slate-600 hover:bg-slate-200',
-          ]"
+          @click="downloadArchiveImportTemplate"
+          class="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition text-sm"
         >
-          标签树
+          下载模板
+        </button>
+        <button
+          @click="importArchives"
+          class="px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-sm"
+        >
+          导入
         </button>
       </div>
-      <template v-if="displayMode === 'normal'">
-        <input
-          v-model="searchKeyword"
-          @input="searchArchives"
-          placeholder="搜索编号/名称/位置"
-          class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
-        />
-        <select
-          v-model="selectedCategory"
-          @change="filterArchives"
-          class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+
+      <!-- 视图切换与操作 -->
+      <div class="flex flex-wrap gap-3 items-center">
+        <div class="flex items-center bg-slate-100 rounded-lg p-1">
+          <button
+            @click="displayMode = 'normal'"
+            :class="[
+              'px-3 py-1.5 text-sm rounded-md transition',
+              displayMode === 'normal'
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-600 hover:bg-slate-200',
+            ]"
+          >
+            普通
+          </button>
+          <button
+            @click="displayMode = 'tag-tree'"
+            :class="[
+              'px-3 py-1.5 text-sm rounded-md transition',
+              displayMode === 'tag-tree'
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-600 hover:bg-slate-200',
+            ]"
+          >
+            标签树
+          </button>
+        </div>
+        <div class="flex-1"></div>
+        <button
+          v-if="selectedArchiveIds.length > 0"
+          @click="removeSelectedArchives"
+          class="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
         >
-          <option :value="null">全部分类</option>
-          <option v-for="c in store.archiveCategories" :key="c.id" :value="c.id">
-            {{ c.name }}
-          </option>
-        </select>
-        <select
-          v-model="selectedStatus"
-          @change="filterArchives"
-          class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          批量删除（{{ selectedArchiveIds.length }}）
+        </button>
+        <button
+          @click="showForm = true; resetArchiveForm();"
+          class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
         >
-          <option value="">全部状态</option>
-          <option v-for="s in statusOptions" :key="s.value" :value="s.value">
-            {{ s.label }}
-          </option>
-        </select>
-      </template>
-      <div class="flex-1"></div>
-      <button
-        v-if="selectedArchiveIds.length > 0"
-        @click="removeSelectedArchives"
-        class="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-      >
-        批量删除（{{ selectedArchiveIds.length }}）
-      </button>
-      <button
-        @click="showForm = true; resetArchiveForm();"
-        class="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-      >
-        + 登记档案
-      </button>
+          + 登记档案
+        </button>
+      </div>
+    </div>
+
+    <div v-if="archivesImportStatus || archivesExportStatus" class="text-sm text-blue-600">
+      {{ archivesImportStatus || archivesExportStatus }}
     </div>
 
     <!-- Archive Form Modal -->
@@ -1409,16 +1562,34 @@ onMounted(loadAll);
     <div v-if="activeTab === 'borrows'" class="bg-white rounded-xl shadow-sm border overflow-hidden">
       <div class="px-6 py-4 border-b bg-slate-50 flex flex-wrap justify-between items-center gap-3">
         <h3 class="font-semibold text-slate-800">借还记录</h3>
-        <select
-          v-model="borrowStatusFilter"
-          @change="borrowPage = 1; loadBorrows()"
-          class="px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">全部记录</option>
-          <option value="borrowed">借阅中</option>
-          <option value="returned">已归还</option>
-          <option value="overdue">逾期</option>
-        </select>
+        <div class="flex flex-wrap items-center gap-3">
+          <select
+            v-model="borrowStatusFilter"
+            @change="borrowPage = 1; loadBorrows()"
+            class="px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">全部记录</option>
+            <option value="borrowed">借阅中</option>
+            <option value="returned">已归还</option>
+            <option value="overdue">逾期</option>
+          </select>
+          <select
+            v-model="borrowsExportFormat"
+            class="px-3 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="xlsx">Excel</option>
+            <option value="csv">CSV</option>
+          </select>
+          <button
+            @click="exportBorrows"
+            class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm"
+          >
+            导出
+          </button>
+        </div>
+      </div>
+      <div v-if="borrowsExportStatus" class="px-6 py-2 text-sm text-blue-600 border-b">
+        {{ borrowsExportStatus }}
       </div>
       <div class="table-scroll-wrapper">
       <table class="w-full text-left text-sm table-min-content">

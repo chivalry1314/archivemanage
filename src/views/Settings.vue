@@ -1,21 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { save } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import {
-  exportArchiveBorrowsCsv,
-  exportArchiveBorrowsXlsx,
-  exportArchivesCsv,
-  exportArchivesXlsx,
-  exportInstancesCsv,
-  exportInstancesJson,
-  exportMemberStatsCsv,
   getAiConfig,
   getDbPath,
   getMobileServerStatus,
-  importArchivesFromExcel,
   listAiModels,
-  saveFile,
   setAiConfig,
   setDbPath,
   startMobileServer,
@@ -24,11 +15,8 @@ import {
   type ServerStatus,
 } from "../api";
 import { showError } from "../utils/error";
-import * as XLSX from "xlsx";
 
 const dbPath = ref("");
-const exportStatus = ref("");
-const importStatus = ref("");
 const migrateData = ref(true);
 const dbStatus = ref("");
 const pageSize = ref(10);
@@ -38,8 +26,6 @@ const mobilePort = ref(8421);
 const mobileStatus = ref<ServerStatus | null>(null);
 const mobileLoading = ref(false);
 const mobileMessage = ref("");
-const archivesExportFormat = ref<"csv" | "xlsx">("csv");
-const borrowsExportFormat = ref<"csv" | "xlsx">("csv");
 
 const aiConfig = ref<AiConfig>({
   enabled: false,
@@ -108,18 +94,6 @@ const fetchAiModels = async () => {
   }
 };
 
-const downloadFile = (content: string, filename: string, type: string) => {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-
 const changeDbPath = async () => {
   try {
     const path = await save({
@@ -136,111 +110,6 @@ const changeDbPath = async () => {
     showError(e);
     dbStatus.value = "";
   }
-};
-
-const importArchives = async () => {
-  try {
-    const path = await open({
-      filters: [{ name: "Excel", extensions: ["xlsx"] }],
-      directory: false,
-      multiple: false,
-    });
-    if (!path) return;
-
-    importStatus.value = "正在导入，请稍候...";
-    const [archiveCount, tagCount] = await importArchivesFromExcel(path as string);
-    importStatus.value = `导入完成：新增 ${archiveCount} 个档案，${tagCount} 个标签`;
-    setTimeout(() => (importStatus.value = ""), 5000);
-  } catch (e) {
-    showError(e);
-    importStatus.value = "";
-  }
-};
-
-const downloadImportTemplate = async () => {
-  try {
-    const path = await save({
-      filters: [{ name: "Excel", extensions: ["xlsx"] }],
-      defaultPath: "档案导入模板.xlsx",
-    });
-    if (!path) return;
-
-    const data = [
-      ["具体材料", "档案盒名称", "标签"],
-      ["1号楼业主资料", "1号楼业主盒", "重要合同"],
-      ["消防设备清单", "消防设备盒", "2026年度,设备"],
-      ["停车场租赁合同", "合同档案盒", "重要合同、租赁"],
-      ["电梯维保记录", "电梯档案盒", ""],
-    ];
-    const worksheet = XLSX.utils.aoa_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-    const arrayBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    const uint8Array = new Uint8Array(arrayBuffer);
-
-    await saveFile(path as string, uint8Array);
-    importStatus.value = "模板已保存";
-    setTimeout(() => (importStatus.value = ""), 3000);
-  } catch (e) {
-    showError(e);
-  }
-};
-
-const exportInstances = async () => {
-  const csv = await exportInstancesCsv();
-  downloadFile(csv, `任务实例_${new Date().toISOString().split("T")[0]}.csv`, "text/csv;charset=utf-8;");
-  exportStatus.value = "任务实例导出成功";
-  setTimeout(() => (exportStatus.value = ""), 3000);
-};
-
-const exportJson = async () => {
-  const json = await exportInstancesJson();
-  downloadFile(json, `任务数据_${new Date().toISOString().split("T")[0]}.json`, "application/json");
-  exportStatus.value = "JSON 导出成功";
-  setTimeout(() => (exportStatus.value = ""), 3000);
-};
-
-const exportStats = async () => {
-  const csv = await exportMemberStatsCsv();
-  downloadFile(csv, `人员统计_${new Date().toISOString().split("T")[0]}.csv`, "text/csv;charset=utf-8;");
-  exportStatus.value = "人员统计导出成功";
-  setTimeout(() => (exportStatus.value = ""), 3000);
-};
-
-const exportArchives = async () => {
-  const dateStr = new Date().toISOString().split("T")[0];
-  if (archivesExportFormat.value === "xlsx") {
-    const path = await save({
-      filters: [{ name: "Excel", extensions: ["xlsx"] }],
-      defaultPath: `档案台账_${dateStr}.xlsx`,
-    });
-    if (!path) return;
-    const bytes = await exportArchivesXlsx();
-    await saveFile(path as string, new Uint8Array(bytes));
-  } else {
-    const csv = await exportArchivesCsv();
-    downloadFile(csv, `档案台账_${dateStr}.csv`, "text/csv;charset=utf-8;");
-  }
-  exportStatus.value = "档案台账导出成功";
-  setTimeout(() => (exportStatus.value = ""), 3000);
-};
-
-const exportArchiveBorrows = async () => {
-  const dateStr = new Date().toISOString().split("T")[0];
-  if (borrowsExportFormat.value === "xlsx") {
-    const path = await save({
-      filters: [{ name: "Excel", extensions: ["xlsx"] }],
-      defaultPath: `档案借还记录_${dateStr}.xlsx`,
-    });
-    if (!path) return;
-    const bytes = await exportArchiveBorrowsXlsx();
-    await saveFile(path as string, new Uint8Array(bytes));
-  } else {
-    const csv = await exportArchiveBorrowsCsv();
-    downloadFile(csv, `档案借还记录_${dateStr}.csv`, "text/csv;charset=utf-8;");
-  }
-  exportStatus.value = "档案借还记录导出成功";
-  setTimeout(() => (exportStatus.value = ""), 3000);
 };
 
 const toggleMobileServer = async () => {
@@ -282,137 +151,6 @@ const copyMobileUrl = async () => {
 
 <template>
   <div class="max-w-3xl space-y-6">
-    <div class="bg-white rounded-xl shadow-sm border p-6">
-      <h3 class="font-semibold text-slate-800 mb-4">任务数据导出</h3>
-      <p class="text-sm text-slate-500 mb-4">
-        将任务数据导出为 CSV 或 JSON 文件，方便备份和统计分析。
-      </p>
-      <div class="flex flex-wrap gap-3">
-        <button
-          @click="exportInstances"
-          class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          导出任务实例 (CSV)
-        </button>
-        <button
-          @click="exportStats"
-          class="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-        >
-          导出人员统计 (CSV)
-        </button>
-        <button
-          @click="exportJson"
-          class="px-5 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition"
-        >
-          导出 JSON
-        </button>
-      </div>
-    </div>
-
-    <div class="bg-white rounded-xl shadow-sm border p-6">
-      <h3 class="font-semibold text-slate-800 mb-4">档案数据导出</h3>
-      <p class="text-sm text-slate-500 mb-4">
-        将档案台账和借还记录导出为 CSV 或 Excel 文件。
-      </p>
-      <div class="space-y-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="text-sm text-slate-600 w-24">档案台账</span>
-          <div class="flex items-center bg-slate-100 rounded-lg p-1">
-            <button
-              @click="archivesExportFormat = 'csv'"
-              :class="[
-                'px-3 py-1.5 text-sm rounded-md transition',
-                archivesExportFormat === 'csv'
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-200',
-              ]"
-            >
-              CSV
-            </button>
-            <button
-              @click="archivesExportFormat = 'xlsx'"
-              :class="[
-                'px-3 py-1.5 text-sm rounded-md transition',
-                archivesExportFormat === 'xlsx'
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-200',
-              ]"
-            >
-              Excel
-            </button>
-          </div>
-          <button
-            @click="exportArchives"
-            class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            导出档案台账
-          </button>
-        </div>
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="text-sm text-slate-600 w-24">借还记录</span>
-          <div class="flex items-center bg-slate-100 rounded-lg p-1">
-            <button
-              @click="borrowsExportFormat = 'csv'"
-              :class="[
-                'px-3 py-1.5 text-sm rounded-md transition',
-                borrowsExportFormat === 'csv'
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-200',
-              ]"
-            >
-              CSV
-            </button>
-            <button
-              @click="borrowsExportFormat = 'xlsx'"
-              :class="[
-                'px-3 py-1.5 text-sm rounded-md transition',
-                borrowsExportFormat === 'xlsx'
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-200',
-              ]"
-            >
-              Excel
-            </button>
-          </div>
-          <button
-            @click="exportArchiveBorrows"
-            class="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-          >
-            导出借还记录
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="exportStatus" class="bg-green-50 text-green-700 px-6 py-3 rounded-lg text-sm">
-      {{ exportStatus }}
-    </div>
-
-    <div class="bg-white rounded-xl shadow-sm border p-6">
-      <h3 class="font-semibold text-slate-800 mb-4">档案导入</h3>
-      <p class="text-sm text-slate-500 mb-4">
-        从 Excel 导入档案台账。要求 Sheet1 第一行为表头（具体材料、档案盒名称、标签），第二行起为数据。
-        未指定材料的标签也会创建；未指定分类的档案归入“未知分类”，保管人默认为“未知保管人”。
-      </p>
-      <div class="flex flex-wrap gap-3">
-        <button
-          @click="importArchives"
-          class="px-5 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition"
-        >
-          选择 Excel 文件导入
-        </button>
-        <button
-          @click="downloadImportTemplate"
-          class="px-5 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition"
-        >
-          下载导入模板
-        </button>
-      </div>
-      <div v-if="importStatus" class="mt-3 text-sm text-green-600">
-        {{ importStatus }}
-      </div>
-    </div>
-
     <div class="bg-white rounded-xl shadow-sm border p-6">
       <h3 class="font-semibold text-slate-800 mb-4">列表分页设置</h3>
       <p class="text-sm text-slate-500 mb-4">
