@@ -53,6 +53,11 @@ const borrows = [
   { borrow: { id: 1, archive_id: 1, borrower_id: 1, purpose: '年度审计', borrow_date: '2026-08-01', due_date: '2026-08-20', return_date: '', status: 'borrowed', approver_id: 2, note: '' }, archive: { archive: { code: 'YZ00001', title: '1号楼业主资料' } }, borrower: { name: '张三' }, approver: { name: '李四' } },
 ];
 
+const contracts = [
+  { id: 1, contract_no: 'HT-2026-001', contract_name: '保洁服务合同', party_a: '物业管理处', party_b: '洁净家政服务公司', contact_person: '王经理', contact_info: '13800138003', total_amount_with_tax: 12000000, total_amount_without_tax: 11320755, tax_amount: 679245, payment_cycle: '季度', payment_amount_with_tax: 3000000, payment_method: '银行转账', effective_date: '2026-01-01', end_date: '2026-12-31', sign_date: '2025-12-28', handler_party_a: '张三', handler_party_b: '王经理', remark: '含每月两次深度保洁' },
+  { id: 2, contract_no: 'HT-2026-002', contract_name: '电梯维保合同', party_a: '物业管理处', party_b: '恒安电梯有限公司', contact_person: '刘工', contact_info: '13800138004', total_amount_with_tax: 4800000, total_amount_without_tax: 4528302, tax_amount: 271698, payment_cycle: '半年', payment_amount_with_tax: 2400000, payment_method: '银行转账', effective_date: '2026-02-01', end_date: '2027-01-31', sign_date: '2026-01-20', handler_party_a: '李四', handler_party_b: '刘工', remark: '' },
+];
+
 async function takeScreenshots() {
   const browser = await chromium.launch({
     headless: true,
@@ -61,7 +66,7 @@ async function takeScreenshots() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
   await page.addInitScript((mockData) => {
-    const { members, categories, tags, tasks, taskInstances, archives, borrows, archiveBoxes } = mockData;
+    const { members, categories, tags, tasks, taskInstances, archives, borrows, archiveBoxes, contracts } = mockData;
 
     window.__TAURI_INTERNALS__ = window.__TAURI_INTERNALS__ || {};
     window.__TAURI_INTERNALS__.invoke = (cmd, args) => {
@@ -101,6 +106,8 @@ async function takeScreenshots() {
           return returnValue(archiveBoxes);
         case 'list_archive_boxes_paged':
           return returnValue({ items: archiveBoxes, total: archiveBoxes.length });
+        case 'list_contracts':
+          return returnValue({ items: contracts, total: contracts.length });
         case 'get_archive_stats':
           return returnValue({ total_count: 1, in_stock_count: 1, borrowed_count: 0, damaged_count: 0, destroyed_count: 0, overdue_count: 0 });
         case 'get_db_path':
@@ -123,7 +130,7 @@ async function takeScreenshots() {
     window.__TAURI__ = window.__TAURI__ || {};
     window.__TAURI__.event = { listen: () => Promise.resolve(() => {}) };
     window.__TAURI__.app = { getVersion: () => Promise.resolve('0.1.0') };
-  }, { members, categories, tags, tasks, taskInstances, archives, borrows, archiveBoxes });
+  }, { members, categories, tags, tasks, taskInstances, archives, borrows, archiveBoxes, contracts });
 
   // Dashboard
   await page.goto(`${BASE_URL}/#/`, { waitUntil: 'networkidle', timeout: 10000 });
@@ -221,11 +228,23 @@ async function takeScreenshots() {
   await page.screenshot({ path: `${OUTPUT_DIR}/borrows-list.png`, fullPage: false });
   console.log('Captured borrows-list.png');
 
+  // Contracts
+  await page.goto(`${BASE_URL}/#/contracts`, { waitUntil: 'networkidle', timeout: 10000 });
+  await sleep(1000);
+  await page.screenshot({ path: `${OUTPUT_DIR}/contracts-list.png`, fullPage: false });
+  console.log('Captured contracts-list.png');
+
+  // Contract form modal
+  await page.click('button:has-text("添加合同")');
+  await sleep(800);
+  await page.screenshot({ path: `${OUTPUT_DIR}/contract-form.png`, fullPage: false });
+  console.log('Captured contract-form.png');
+  await page.click('button:has-text("取消")');
+  await sleep(500);
+
   // Settings
   await page.goto(`${BASE_URL}/#/settings`, { waitUntil: 'networkidle', timeout: 10000 });
   await sleep(1000);
-  await page.screenshot({ path: `${OUTPUT_DIR}/settings-export.png`, fullPage: false });
-  console.log('Captured settings-export.png');
 
   // AI config section
   await page.evaluate(() => {

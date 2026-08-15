@@ -31,6 +31,7 @@ export default defineConfig({
             { text: '档案盒维护', link: '/guide/archive-boxes' },
             { text: '档案分类', link: '/guide/archive-categories' },
             { text: '档案标签', link: '/guide/archive-tags' },
+            { text: '合同管理', link: '/guide/contracts' },
             { text: '设置', link: '/guide/settings' },
           ],
         },
