@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import { getDashboardStats, listMembers, listTasks, getArchiveStats, listArchives, listArchiveBorrows, listArchiveTags, listContracts } from "./api";
+import { getDashboardStats, listMembers, listTasks, getArchiveStats, listArchives, listArchiveBorrows, listArchiveTags, listContracts, getDbPath } from "./api";
 import { useAppStore } from "./stores/app";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
+import Onboarding from "./views/Onboarding.vue";
 
 const store = useAppStore();
 const route = useRoute();
 const appVersion = ref("");
+const dbReady = ref<boolean | null>(null);
 
 const navItems = [
   { path: "/", label: "仪表盘" },
@@ -63,7 +65,14 @@ const playBeep = () => {
 };
 
 onMounted(async () => {
-  await refreshData();
+  try {
+    await getDbPath();
+    dbReady.value = true;
+    await refreshData();
+  } catch {
+    // 数据库尚未初始化：显示首次启动向导
+    dbReady.value = false;
+  }
 
   try {
     appVersion.value = await getVersion();
@@ -85,7 +94,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-screen flex overflow-hidden">
+  <div v-if="dbReady === null" class="h-screen flex items-center justify-center bg-slate-100">
+    <div class="text-sm text-slate-500">正在加载...</div>
+  </div>
+  <Onboarding v-else-if="!dbReady" />
+  <div v-else class="h-screen flex overflow-hidden">
     <!-- Sidebar -->
     <aside class="w-56 bg-slate-900 text-white flex flex-col overflow-y-auto">
       <div class="p-6">

@@ -71,6 +71,28 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+pub fn is_db_configured(app_dir: &Path) -> bool {
+    // Explicitly configured via the settings page or the onboarding wizard
+    let config_path = app_dir.join("config.json");
+    if let Ok(content) = fs::read_to_string(config_path) {
+        if let Ok(config) = serde_json::from_str::<AppConfig>(&content) {
+            if config.db_path.is_some() {
+                return true;
+            }
+        }
+    }
+    // Existing install without a config file: a default database already
+    // exists in the app data dir, so skip the onboarding wizard.
+    app_dir.join("archivemanage.db").exists() || app_dir.join("task_reminder.db").exists()
+}
+
+pub fn set_app_dir(app_dir: PathBuf) -> Result<(), String> {
+    APP_DIR.set(app_dir).map_err(|_| {
+        "App dir already initialized".to_string()
+    })?;
+    Ok(())
+}
+
 fn open_db_at(path: &Path) -> Result<Connection, String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("创建数据库目录失败：{}", e))?;
@@ -81,9 +103,11 @@ fn open_db_at(path: &Path) -> Result<Connection, String> {
 }
 
 pub fn init_db(app_dir: PathBuf) -> Result<(), String> {
-    APP_DIR.set(app_dir.clone()).map_err(|_| {
-        "App dir already initialized".to_string()
-    })?;
+    if APP_DIR.get().is_none() {
+        APP_DIR.set(app_dir.clone()).map_err(|_| {
+            "App dir already initialized".to_string()
+        })?;
+    }
 
     let config = load_config();
     let db_path = config
@@ -125,6 +149,10 @@ pub fn db() -> Arc<Mutex<Connection>> {
 
 pub fn current_db_path() -> Option<PathBuf> {
     DB_PATH.lock().ok()?.clone()
+}
+
+pub fn default_db_path() -> Option<PathBuf> {
+    APP_DIR.get().map(|d| d.join("archivemanage.db"))
 }
 
 pub fn get_ai_config() -> Result<AiConfig, String> {

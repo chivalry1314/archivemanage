@@ -42,7 +42,7 @@
 数据文件存放在：
 
 ```
-%APPDATA%\com.dshj5.archive-management-os\archivemanage.db
+%APPDATA%\com.waynext.archive-management-os\archivemanage.db
 ```
 
 ### 方式二：开发调试

@@ -101,6 +101,7 @@ export const exportArchiveBorrowsXlsx = () =>
 export const saveFile = (path: string, content: Uint8Array) =>
   invoke<void>("save_file_command", { path, content: Array.from(content) });
 export const getDbPath = () => invoke<string>("get_db_path");
+export const getDefaultDbPath = () => invoke<string>("get_default_db_path");
 
 // AI
 export interface AiConfig {

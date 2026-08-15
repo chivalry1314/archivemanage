@@ -33,14 +33,21 @@ pub fn run() {
         .setup(|app| {
             let app_dir = app.path().app_data_dir().expect("Failed to get app data dir");
             std::fs::create_dir_all(&app_dir).ok();
-            db::init_db(app_dir).expect("Failed to initialize database");
 
-            // Start background scheduler
-            let handle = app.handle().clone();
-            scheduler::start_scheduler(handle);
-
-            // Setup tray icon
+            // Setup tray icon (works with or without an initialized database)
             setup_tray(app)?;
+
+            if db::is_db_configured(&app_dir) {
+                db::init_db(app_dir).expect("Failed to initialize database");
+
+                // Start background scheduler
+                let handle = app.handle().clone();
+                scheduler::start_scheduler(handle);
+            } else {
+                // First run: only remember the app dir, wait for the
+                // onboarding wizard to pick a database location.
+                db::set_app_dir(app_dir).expect("Failed to set app dir");
+            }
 
             Ok(())
         })
@@ -128,6 +135,7 @@ pub fn run() {
             save_file_command,
             get_db_path,
             set_db_path_command,
+            get_default_db_path,
             // Mobile server
             start_mobile_server,
             stop_mobile_server,
