@@ -63,6 +63,8 @@
 
 在设置页可以开启档案盒 AI 识别功能：
 
+![档案盒 AI 识别设置](/images/settings-ai.png)
+
 1. 勾选 **启用档案盒 AI 识别**；
 2. 填写 **API 地址**（硅基流动默认 `https://api.siliconflow.cn/v1`）；
 3. 填写 **API Key**；
