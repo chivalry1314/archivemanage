@@ -23,7 +23,20 @@ struct AppConfig {
 }
 
 fn config_path() -> Option<PathBuf> {
-    APP_DIR.get().map(|d| d.join("config.json"))
+    APP_DIR.get().map(|d| resolve_config_path(d))
+}
+
+// The real config.json location is recorded in a small pointer file inside
+// the app data dir, so the config itself can live next to the database.
+fn resolve_config_path(app_dir: &Path) -> PathBuf {
+    let pointer = app_dir.join("config-location.txt");
+    if let Ok(content) = fs::read_to_string(&pointer) {
+        let trimmed = content.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
+    app_dir.join("config.json")
 }
 
 fn load_config() -> AppConfig {
@@ -73,7 +86,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
 
 pub fn is_db_configured(app_dir: &Path) -> bool {
     // Explicitly configured via the settings page or the onboarding wizard
-    let config_path = app_dir.join("config.json");
+    let config_path = resolve_config_path(app_dir);
     if let Ok(content) = fs::read_to_string(config_path) {
         if let Ok(config) = serde_json::from_str::<AppConfig>(&content) {
             if config.db_path.is_some() {
@@ -184,6 +197,50 @@ pub fn set_db_path(new_path: PathBuf, migrate: bool) -> Result<(), String> {
     let mut config = load_config();
     config.db_path = Some(new_path);
     save_config(&config)?;
+
+    Ok(())
+}
+
+pub fn get_config_path() -> Option<PathBuf> {
+    config_path()
+}
+
+pub fn set_config_path(new_path: PathBuf, migrate: bool) -> Result<(), String> {
+    let app_dir = APP_DIR.get().cloned().ok_or("App dir not initialized")?;
+    let old_path = resolve_config_path(&app_dir);
+    if new_path == old_path {
+        return Ok(());
+    }
+
+    if let Some(parent) = new_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建配置文件目录失败：{}", e))?;
+    }
+
+    if !new_path.exists() {
+        if migrate && old_path.exists() {
+            fs::copy(&old_path, &new_path).map_err(|e| {
+                format!(
+                    "迁移配置失败：无法从 {} 复制到 {}，错误：{}",
+                    old_path.display(),
+                    new_path.display(),
+                    e
+                )
+            })?;
+        } else {
+            // First run or no migration requested: write the current config
+            // (still resolved from the old location) to the new file.
+            let config = load_config();
+            let content =
+                serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+            fs::write(&new_path, content).map_err(|e| format!("写入配置文件失败：{}", e))?;
+        }
+    }
+
+    fs::write(
+        app_dir.join("config-location.txt"),
+        new_path.to_string_lossy().as_bytes(),
+    )
+    .map_err(|e| format!("记录配置文件位置失败：{}", e))?;
 
     Ok(())
 }

@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { getDefaultDbPath, setDbPath } from "../api";
+import { getDefaultDbPath, setConfigPath, setDbPath } from "../api";
 import { showError } from "../utils/error";
 
 const status = ref("");
@@ -12,6 +12,12 @@ const finishWith = async (path: string, migrate: boolean) => {
   loading.value = true;
   try {
     status.value = "正在初始化数据库...";
+    // 配置文件 config.json 与数据库放在同一目录，便于整体备份
+    const sepIndex = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+    if (sepIndex > 0) {
+      const sep = path[sepIndex];
+      await setConfigPath(path.slice(0, sepIndex) + sep + "config.json", false);
+    }
     await setDbPath(path, migrate);
     status.value = "初始化完成，即将重启应用...";
     setTimeout(() => relaunch(), 800);
@@ -65,7 +71,7 @@ const useDefaultLocation = async () => {
     <div class="bg-white rounded-xl shadow-sm border p-8 max-w-md w-full mx-4">
       <h1 class="text-xl font-bold text-slate-800">欢迎使用档案管理OS</h1>
       <p class="text-sm text-slate-500 mt-2">
-        首次使用需要选择数据库文件的存放位置。所有档案、任务和合同数据都会保存在这个文件中。
+        首次使用需要选择数据库文件的存放位置。所有档案、任务和合同数据都会保存在这个文件中，配置文件（config.json）会保存在同一目录下。
       </p>
       <ul class="list-disc list-inside text-sm text-slate-500 mt-3 space-y-1">
         <li>建议选择便于备份的目录，例如 D 盘或文档目录。</li>

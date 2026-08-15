@@ -181,6 +181,20 @@ pub fn get_default_db_path() -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn get_config_path_command() -> Result<String, String> {
+    crate::db::get_config_path()
+        .map(|p| p.to_string_lossy().to_string())
+        .ok_or("应用目录未初始化".to_string())
+}
+
+#[tauri::command]
+pub fn set_config_path_command(path: String, migrate: bool) -> Result<String, String> {
+    let new_path = std::path::PathBuf::from(path);
+    crate::db::set_config_path(new_path, migrate)?;
+    get_config_path_command()
+}
+
+#[tauri::command]
 pub fn export_archives_csv() -> Result<String, String> {
     let db = db();
     let conn = db.lock().map_err(|e| e.to_string())?;

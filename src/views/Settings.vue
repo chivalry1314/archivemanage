@@ -4,10 +4,12 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import {
   getAiConfig,
+  getConfigPath,
   getDbPath,
   getMobileServerStatus,
   listAiModels,
   setAiConfig,
+  setConfigPath,
   setDbPath,
   startMobileServer,
   stopMobileServer,
@@ -19,6 +21,9 @@ import { showError } from "../utils/error";
 const dbPath = ref("");
 const migrateData = ref(true);
 const dbStatus = ref("");
+const configPath = ref("");
+const migrateConfig = ref(true);
+const configStatus = ref("");
 const pageSize = ref(10);
 const settingsStatus = ref("");
 
@@ -39,6 +44,11 @@ const aiModelsLoading = ref(false);
 
 onMounted(async () => {
   dbPath.value = await getDbPath();
+  try {
+    configPath.value = await getConfigPath();
+  } catch (e) {
+    // ignore
+  }
   const saved = localStorage.getItem("pageSize");
   if (saved) {
     pageSize.value = Math.max(5, Math.min(100, parseInt(saved, 10) || 10));
@@ -109,6 +119,24 @@ const changeDbPath = async () => {
   } catch (e) {
     showError(e);
     dbStatus.value = "";
+  }
+};
+
+const changeConfigPath = async () => {
+  try {
+    const path = await save({
+      filters: [{ name: "JSON", extensions: ["json"] }],
+      defaultPath: "config.json",
+    });
+    if (!path) return;
+
+    configStatus.value = "正在切换配置文件路径...";
+    configPath.value = await setConfigPath(path as string, migrateConfig.value);
+    configStatus.value = "配置文件路径已切换";
+    setTimeout(() => (configStatus.value = ""), 3000);
+  } catch (e) {
+    showError(e);
+    configStatus.value = "";
   }
 };
 
@@ -274,6 +302,35 @@ const copyMobileUrl = async () => {
       </div>
       <div v-if="dbStatus" class="mt-3 text-sm text-green-600">
         {{ dbStatus }}
+      </div>
+
+      <div class="mt-6 pt-6 border-t">
+        <p class="text-sm text-slate-500 mb-4">
+          配置文件（config.json）保存数据库路径、AI 配置等信息，当前路径如下。
+          修改路径时可以选择是否迁移现有配置；若目标位置已有配置文件，则直接使用该文件。
+        </p>
+        <div class="bg-slate-100 rounded-lg px-4 py-3 text-sm text-slate-700 break-all font-mono mb-4">
+          {{ configPath }}
+        </div>
+        <div class="flex flex-wrap items-center gap-4">
+          <label class="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              v-model="migrateConfig"
+              class="w-4 h-4"
+            />
+            迁移现有配置到新路径
+          </label>
+          <button
+            @click="changeConfigPath"
+            class="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            修改配置文件路径
+          </button>
+        </div>
+        <div v-if="configStatus" class="mt-3 text-sm text-green-600">
+          {{ configStatus }}
+        </div>
       </div>
     </div>
 

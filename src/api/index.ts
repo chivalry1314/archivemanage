@@ -138,6 +138,9 @@ export const analyzeArchiveBox = (
   });
 export const setDbPath = (path: string, migrate: boolean) =>
   invoke<string>("set_db_path_command", { path, migrate });
+export const getConfigPath = () => invoke<string>("get_config_path_command");
+export const setConfigPath = (path: string, migrate: boolean) =>
+  invoke<string>("set_config_path_command", { path, migrate });
 
 // Archive Boxes
 export interface CreateArchiveBoxRequest {

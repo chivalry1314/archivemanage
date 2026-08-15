@@ -136,6 +136,8 @@ pub fn run() {
             get_db_path,
             set_db_path_command,
             get_default_db_path,
+            get_config_path_command,
+            set_config_path_command,
             // Mobile server
             start_mobile_server,
             stop_mobile_server,
