@@ -1457,17 +1457,24 @@ pub fn import_archives_from_excel(path: String) -> Result<(usize, usize), String
             .get(1)
             .map(|c| c.as_string().unwrap_or_default().trim().to_string())
             .unwrap_or_default();
-        let tag_name: String = row
+        let tag_cell: String = row
             .get(2)
             .map(|c| c.as_string().unwrap_or_default().trim().to_string())
             .unwrap_or_default();
 
-        if tag_name.is_empty() && material.is_empty() {
+        // 标签支持顿号（、）或英文逗号（,）分隔
+        let tags: Vec<String> = tag_cell
+            .split(|c| c == '、' || c == ',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        if tags.is_empty() && material.is_empty() {
             continue;
         }
 
-        if !tag_name.is_empty() {
-            tag_names.insert(tag_name.clone());
+        for tag in &tags {
+            tag_names.insert(tag.clone());
         }
 
         if !material.is_empty() {
@@ -1477,8 +1484,10 @@ pub fn import_archives_from_excel(path: String) -> Result<(usize, usize), String
             if entry.0.is_empty() && !box_name.is_empty() {
                 entry.0 = box_name;
             }
-            if !tag_name.is_empty() && !entry.1.contains(&tag_name) {
-                entry.1.push(tag_name);
+            for tag in &tags {
+                if !entry.1.contains(tag) {
+                    entry.1.push(tag.clone());
+                }
             }
         }
     }
