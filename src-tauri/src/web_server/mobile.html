@@ -3,12 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>档案搜索</title>
+<title>数据搜索</title>
 <style>
   * { box-sizing: border-box; }
   body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #f8fafc; color: #1e293b; }
   .container { max-width: 720px; margin: 0 auto; padding: 16px; }
   h1 { font-size: 1.25rem; margin: 0 0 12px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tab { flex: 1; padding: 8px 0; text-align: center; border-radius: 8px; background: #e2e8f0; color: #475569; font-size: 0.95rem; cursor: pointer; user-select: none; }
+  .tab.active { background: #2563eb; color: white; font-weight: 600; }
   .search-box { display: flex; gap: 8px; margin-bottom: 12px; }
   input[type="text"] { flex: 1; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; outline: none; }
   input[type="text"]:focus { border-color: #2563eb; }
@@ -31,7 +34,11 @@
 </head>
 <body>
 <div class="container">
-  <h1>档案搜索</h1>
+  <h1>数据搜索</h1>
+  <div class="tabs">
+    <div class="tab active" id="tab-archives" onclick="switchTab('archives')">档案</div>
+    <div class="tab" id="tab-contracts" onclick="switchTab('contracts')">合同</div>
+  </div>
   <div class="search-box">
     <input type="text" id="q" placeholder="输入编号、名称、档案盒或位置" onkeydown="if(event.key==='Enter') search(1)">
     <button onclick="search(1)">搜索</button>
@@ -41,14 +48,27 @@
   <div class="pagination" id="pagination"></div>
 </div>
 <script>
+  const TAB_CONFIG = {
+    archives: { placeholder: '输入编号、名称、档案盒或位置', empty: '暂无档案' },
+    contracts: { placeholder: '输入编号、名称、甲方、乙方或备注', empty: '暂无合同' },
+  };
+  let currentTab = 'archives';
   let currentPage = 1;
   let currentQuery = '';
+  function switchTab(tab) {
+    if (tab === currentTab) return;
+    currentTab = tab;
+    document.getElementById('tab-archives').classList.toggle('active', tab === 'archives');
+    document.getElementById('tab-contracts').classList.toggle('active', tab === 'contracts');
+    document.getElementById('q').placeholder = TAB_CONFIG[tab].placeholder;
+    search(1);
+  }
   async function search(page) {
     const q = document.getElementById('q').value.trim();
     currentQuery = q;
     currentPage = page;
     try {
-      const res = await fetch(`/api/archives/search?q=${encodeURIComponent(q)}&page=${page}&per_page=20`);
+      const res = await fetch(`/api/${currentTab}/search?q=${encodeURIComponent(q)}&page=${page}&per_page=20`);
       if (!res.ok) throw new Error('查询失败');
       const data = await res.json();
       render(data);
@@ -62,23 +82,12 @@
     const container = document.getElementById('results');
     container.innerHTML = '';
     if (!data.items || data.items.length === 0) {
-      container.innerHTML = '<div class="empty">暂无档案</div>';
+      container.innerHTML = `<div class="empty">${TAB_CONFIG[currentTab].empty}</div>`;
       document.getElementById('pagination').innerHTML = '';
       return;
     }
     for (const item of data.items) {
-      const a = item.archive;
-      const tags = (item.tags || []).map(t => `<span class="tag">${escapeHtml(t.name)}</span>`).join('');
-      container.innerHTML += `
-        <div class="card">
-          <div class="card-title">${escapeHtml(a.code)} ${escapeHtml(a.title)}</div>
-          <div class="card-meta">
-            档案盒：${escapeHtml(a.box_name || '-')} · 位置：${escapeHtml(a.location || '-')} · 保管人：${escapeHtml(item.keeper?.name || '-')}<br>
-            状态：<span class="badge badge-${a.status}">${statusText(a.status)}</span> · 数量：${a.quantity}
-          </div>
-          ${tags ? `<div>${tags}</div>` : ''}
-        </div>
-      `;
+      container.innerHTML += currentTab === 'archives' ? archiveCard(item) : contractCard(item);
     }
     const totalPages = Math.max(1, Math.ceil((data.total || 0) / (data.per_page || 20)));
     let html = '';
@@ -86,6 +95,37 @@
     html += `<span>${currentPage} / ${totalPages}</span>`;
     if (currentPage < totalPages) html += `<button onclick="search(${currentPage + 1})">下一页</button>`;
     document.getElementById('pagination').innerHTML = html;
+  }
+  function archiveCard(item) {
+    const a = item.archive;
+    const tags = (item.tags || []).map(t => `<span class="tag">${escapeHtml(t.name)}</span>`).join('');
+    return `
+      <div class="card">
+        <div class="card-title">${escapeHtml(a.code)} ${escapeHtml(a.title)}</div>
+        <div class="card-meta">
+          档案盒：${escapeHtml(a.box_name || '-')} · 位置：${escapeHtml(a.location || '-')} · 保管人：${escapeHtml(item.keeper?.name || '-')}<br>
+          状态：<span class="badge badge-${a.status}">${statusText(a.status)}</span> · 数量：${a.quantity}
+        </div>
+        ${tags ? `<div>${tags}</div>` : ''}
+      </div>
+    `;
+  }
+  function contractCard(c) {
+    return `
+      <div class="card">
+        <div class="card-title">${escapeHtml(c.contract_no || '')} ${escapeHtml(c.contract_name)}</div>
+        <div class="card-meta">
+          甲方：${escapeHtml(c.party_a || '-')} · 乙方：${escapeHtml(c.party_b || '-')}<br>
+          总金额（含税）：${formatMoney(c.total_amount_with_tax)} · 付款周期：${escapeHtml(c.payment_cycle || '-')}<br>
+          生效：${escapeHtml(c.effective_date || '-')} · 终止：${escapeHtml(c.end_date || '-')}
+          ${c.remark ? `<br>备注：${escapeHtml(c.remark)}` : ''}
+        </div>
+      </div>
+    `;
+  }
+  function formatMoney(fen) {
+    if (fen === null || fen === undefined) return '-';
+    return (fen / 100).toFixed(2) + ' 元';
   }
   function statusText(s) {
     const map = { in_stock: '在库', borrowed: '借出', damaged: '损坏', destroyed: '销毁' };

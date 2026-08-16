@@ -15,8 +15,9 @@ use tokio::task::JoinHandle;
 use crate::commands::archives::{
     get_archive, list_archive_categories, list_archive_tags, list_archives,
 };
+use crate::commands::contracts::list_contracts;
 use crate::commands::members::list_members;
-use crate::db::models::{ArchiveCategory, ArchiveDetail, ArchiveTag, Member, Paginated};
+use crate::db::models::{ArchiveCategory, ArchiveDetail, ArchiveTag, Contract, Member, Paginated};
 
 struct ServerState {
     handle: JoinHandle<()>,
@@ -64,6 +65,17 @@ async fn archive_detail_handler(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
 }
 
+async fn search_contracts(
+    Query(params): Query<SearchParams>,
+) -> Result<Json<Paginated<Contract>>, (StatusCode, String)> {
+    let page = params.page.unwrap_or(1).max(1);
+    let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
+    let search = params.q.filter(|s| !s.trim().is_empty());
+    list_contracts(search, page, per_page)
+        .map(Json)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
+}
+
 async fn list_categories() -> Result<Json<Vec<ArchiveCategory>>, (StatusCode, String)> {
     list_archive_categories()
         .map(Json)
@@ -87,6 +99,7 @@ fn build_app() -> Router {
         .route("/", get(mobile_index))
         .route("/api/archives/search", get(search_archives))
         .route("/api/archives/:id", get(archive_detail_handler))
+        .route("/api/contracts/search", get(search_contracts))
         .route("/api/categories", get(list_categories))
         .route("/api/tags", get(list_tags))
         .route("/api/members", get(list_members_handler))
