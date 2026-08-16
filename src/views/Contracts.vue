@@ -675,7 +675,7 @@ onMounted(load);
               <td class="px-4 py-3 text-slate-600">{{ c.sign_date || "-" }}</td>
               <td class="px-4 py-3 text-slate-600">{{ c.handler_party_a || "-" }}</td>
               <td class="px-4 py-3 text-slate-600">{{ c.handler_party_b || "-" }}</td>
-              <td class="px-4 py-3 text-slate-600 truncate-cell">{{ c.remark || "-" }}</td>
+              <td class="px-4 py-3 text-slate-600 truncate-cell" :title="c.remark || ''">{{ c.remark || "-" }}</td>
               <td class="px-4 py-3 flex gap-2">
                 <button
                   @click="editContract(c)"

@@ -250,23 +250,11 @@ fn parse_date(cell: &calamine::Data) -> Option<NaiveDate> {
     }
 }
 
-fn parse_money_fen(cell: &calamine::Data) -> Option<i64> {
-    match cell {
-        calamine::Data::Float(n) => Some((*n * 100.0).round() as i64),
-        calamine::Data::Int(n) => Some(*n * 100),
-        calamine::Data::String(s) => {
-            let s = s.trim().replace(',', "");
-            s.parse::<f64>().ok().map(|n| (n * 100.0).round() as i64)
-        }
-        _ => None,
-    }
-}
-
-/// 解析合同总金额（含税）。
-/// 如果单元格是纯正数，返回对应的分值；
+/// 解析金额字段（返回分值）。
+/// 如果单元格是数字或可解析为数字的文本，返回对应的分值；
 /// 如果单元格包含汉字或其他无法直接解析为数字的文本，
 /// 则把原始文本作为备注返回，金额置为空。
-fn parse_total_amount_with_remark(cell: &calamine::Data) -> (Option<i64>, Option<String>) {
+fn parse_money_with_remark(cell: &calamine::Data) -> (Option<i64>, Option<String>) {
     match cell {
         calamine::Data::Float(n) => (Some((*n * 100.0).round() as i64), None),
         calamine::Data::Int(n) => (Some(*n * 100), None),
@@ -282,6 +270,23 @@ fn parse_total_amount_with_remark(cell: &calamine::Data) -> (Option<i64>, Option
             }
         }
         _ => (None, None),
+    }
+}
+
+/// 解析日期字段。
+/// 能解析为日期时返回日期；非空但无法解析为日期的内容，
+/// 把原始文本作为备注返回，日期置为空。
+fn parse_date_with_remark(cell: &calamine::Data) -> (Option<NaiveDate>, Option<String>) {
+    match parse_date(cell) {
+        Some(d) => (Some(d), None),
+        None => {
+            let raw = as_string(cell);
+            if raw.is_empty() {
+                (None, None)
+            } else {
+                (None, Some(raw))
+            }
+        }
     }
 }
 
@@ -376,24 +381,19 @@ pub fn import_contracts_from_excel(path: String) -> Result<usize, String> {
             .map(as_string)
             .unwrap_or_default()
     };
-    let get_money_fen = |row: &[calamine::Data], name: &str| -> Option<i64> {
+    let get_money_fen = |row: &[calamine::Data], name: &str| -> (Option<i64>, Option<String>) {
         header_map
             .get(name)
             .and_then(|i| row.get(*i))
-            .and_then(parse_money_fen)
-    };
-    let get_total_amount = |row: &[calamine::Data], name: &str| -> (Option<i64>, Option<String>) {
-        header_map
-            .get(name)
-            .and_then(|i| row.get(*i))
-            .map(parse_total_amount_with_remark)
+            .map(parse_money_with_remark)
             .unwrap_or((None, None))
     };
-    let get_date = |row: &[calamine::Data], name: &str| -> Option<NaiveDate> {
+    let get_date = |row: &[calamine::Data], name: &str| -> (Option<NaiveDate>, Option<String>) {
         header_map
             .get(name)
             .and_then(|i| row.get(*i))
-            .and_then(parse_date)
+            .map(parse_date_with_remark)
+            .unwrap_or((None, None))
     };
 
     let mut count = 0usize;
@@ -412,8 +412,38 @@ pub fn import_contracts_from_excel(path: String) -> Result<usize, String> {
             }
         };
 
-        let (total_with_tax, total_remark) = get_total_amount(row, "合同总金额（含税）");
-        let remark = total_remark.filter(|s| !s.is_empty());
+        let (total_with_tax, r_total_with_tax) = get_money_fen(row, "合同总金额（含税）");
+        let (total_without_tax, r_total_without_tax) = get_money_fen(row, "合同总金额（不含税）");
+        let (tax_amount, r_tax_amount) = get_money_fen(row, "税额");
+        let (payment_amount, r_payment_amount) = get_money_fen(row, "每次支付金额（含税）");
+        let (effective_date, r_effective_date) = get_date(row, "合同生效日期");
+        let (end_date, r_end_date) = get_date(row, "合同终止日期");
+        let (sign_date, r_sign_date) = get_date(row, "合同签订日期");
+
+        // 金额/日期字段中无法解析的内容，以“字段名：内容”的形式追加到备注。
+        let mut remark_parts: Vec<String> = Vec::new();
+        let base_remark = get_string(row, "备注");
+        if !base_remark.is_empty() {
+            remark_parts.push(base_remark);
+        }
+        for (name, note) in [
+            ("合同总金额（含税）", r_total_with_tax),
+            ("合同总金额（不含税）", r_total_without_tax),
+            ("税额", r_tax_amount),
+            ("每次支付金额（含税）", r_payment_amount),
+            ("合同生效日期", r_effective_date),
+            ("合同终止日期", r_end_date),
+            ("合同签订日期", r_sign_date),
+        ] {
+            if let Some(text) = note.filter(|s| !s.is_empty()) {
+                remark_parts.push(format!("{}：{}", name, text));
+            }
+        }
+        let remark = if remark_parts.is_empty() {
+            None
+        } else {
+            Some(remark_parts.join("；"))
+        };
 
         tx.execute(
             "INSERT INTO contracts (
@@ -430,14 +460,14 @@ pub fn import_contracts_from_excel(path: String) -> Result<usize, String> {
                 Some(get_string(row, "对方联系人")).filter(|s| !s.is_empty()),
                 Some(get_string(row, "联系方式")).filter(|s| !s.is_empty()),
                 total_with_tax,
-                get_money_fen(row, "合同总金额（不含税）"),
-                get_money_fen(row, "税额"),
+                total_without_tax,
+                tax_amount,
                 Some(get_string(row, "付款周期")).filter(|s| !s.is_empty()),
-                get_money_fen(row, "每次支付金额（含税）"),
+                payment_amount,
                 Some(get_string(row, "付款方式")).filter(|s| !s.is_empty()),
-                get_date(row, "合同生效日期"),
-                get_date(row, "合同终止日期"),
-                get_date(row, "合同签订日期"),
+                effective_date,
+                end_date,
+                sign_date,
                 Some(get_string(row, "甲方经办人")).filter(|s| !s.is_empty()),
                 Some(get_string(row, "乙方经办人")).filter(|s| !s.is_empty()),
                 remark,
