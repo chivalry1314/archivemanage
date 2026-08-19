@@ -550,8 +550,8 @@ fn generate_archive_code(conn: &rusqlite::Connection, category_id: i64) -> Resul
 fn archive_detail(conn: &rusqlite::Connection, id: i64) -> Result<ArchiveDetail, String> {
     let archive = conn
         .query_row(
-            "SELECT a.id, a.code, a.title, a.category_id, a.location, a.keeper_id, a.status, a.quantity,
-                    a.description, a.photos, a.archive_type, a.archive_box_id, COALESCE(ab.name, a.box_name) AS box_name,
+            "SELECT a.id, a.code, a.title, a.category_id, COALESCE(ab.location, ab.name) AS location, a.keeper_id, a.status, a.quantity,
+                    a.description, a.photos, a.archive_type, a.archive_box_id, ab.name AS box_name,
                     a.file_path, a.created_at
              FROM archives a
              LEFT JOIN archive_boxes ab ON ab.id = a.archive_box_id
@@ -692,27 +692,21 @@ pub fn create_archive(req: CreateArchiveRequest) -> Result<ArchiveDetail, String
     };
 
     let box_info = get_archive_box(&tx, archive_box_id)?;
-    // 存放位置由档案盒自动带出：优先用档案盒位置，未配置则用档案盒名称
-    let location = box_info
-        .as_ref()
-        .map(|(name, loc)| loc.clone().unwrap_or_else(|| name.clone()));
 
     tx.execute(
-        "INSERT INTO archives (code, title, category_id, location, keeper_id, status, quantity, description, photos,
-                               archive_type, archive_box_id, box_name, file_path)
-         VALUES (?1, ?2, ?3, ?4, ?5, 'in_stock', ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        "INSERT INTO archives (code, title, category_id, keeper_id, status, quantity, description, photos,
+                               archive_type, archive_box_id, file_path)
+         VALUES (?1, ?2, ?3, ?4, 'in_stock', ?5, ?6, ?7, ?8, ?9, ?10)",
         rusqlite::params![
             code,
             req.title,
             req.category_id,
-            location,
             req.keeper_id,
             req.quantity,
             req.description,
             req.photos,
             archive_type,
             archive_box_id,
-            req.box_name,
             req.file_path,
         ],
     )
@@ -759,27 +753,21 @@ pub fn update_archive(req: UpdateArchiveRequest) -> Result<ArchiveDetail, String
     };
 
     let box_info = get_archive_box(&tx, archive_box_id)?;
-    // 存放位置由档案盒自动带出：优先用档案盒位置，未配置则用档案盒名称
-    let location = box_info
-        .as_ref()
-        .map(|(name, loc)| loc.clone().unwrap_or_else(|| name.clone()));
 
     tx.execute(
-        "UPDATE archives SET title = ?1, category_id = ?2, location = ?3, keeper_id = ?4,
-                            quantity = ?5, description = ?6, photos = ?7,
-                            archive_type = ?8, archive_box_id = ?9, box_name = ?10, file_path = ?11
-         WHERE id = ?12",
+        "UPDATE archives SET title = ?1, category_id = ?2, keeper_id = ?3,
+                            quantity = ?4, description = ?5, photos = ?6,
+                            archive_type = ?7, archive_box_id = ?8, file_path = ?9
+         WHERE id = ?10",
         rusqlite::params![
             req.title,
             req.category_id,
-            location,
             req.keeper_id,
             req.quantity,
             req.description,
             req.photos,
             archive_type,
             archive_box_id,
-            req.box_name,
             req.file_path,
             req.id,
         ],
@@ -857,27 +845,30 @@ pub fn list_archives(
     let db = db();
     let conn = db.lock().map_err(|e| e.to_string())?;
 
+    let from_sql = "FROM archives a LEFT JOIN archive_boxes ab ON ab.id = a.archive_box_id";
+
     let mut where_sql = String::from("WHERE 1=1");
     let mut filter_params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
     if let Some(cid) = category_id {
-        where_sql.push_str(" AND category_id = ?");
+        where_sql.push_str(" AND a.category_id = ?");
         filter_params.push(Box::new(cid));
     }
     if let Some(s) = status {
-        where_sql.push_str(" AND status = ?");
+        where_sql.push_str(" AND a.status = ?");
         filter_params.push(Box::new(s));
     }
     if let Some(search) = search {
-        where_sql.push_str(" AND (code LIKE ? OR title LIKE ? OR location LIKE ?)");
+        where_sql.push_str(" AND (a.code LIKE ? OR a.title LIKE ? OR ab.location LIKE ? OR ab.name LIKE ?)");
         let pattern = format!("%{}%", search);
+        filter_params.push(Box::new(pattern.clone()));
         filter_params.push(Box::new(pattern.clone()));
         filter_params.push(Box::new(pattern.clone()));
         filter_params.push(Box::new(pattern));
     }
 
     let total: i64 = {
-        let sql = format!("SELECT COUNT(*) FROM archives {}", where_sql);
+        let sql = format!("SELECT COUNT(DISTINCT a.id) {} {}", from_sql, where_sql);
         let refs: Vec<&dyn rusqlite::ToSql> = filter_params.iter().map(|p| p.as_ref()).collect();
         conn.query_row(&sql, refs.as_slice(), |row| row.get(0))
             .map_err(|e| e.to_string())?
@@ -885,8 +876,8 @@ pub fn list_archives(
 
     let offset = (page - 1).max(0) * per_page;
     let sql = format!(
-        "SELECT id FROM archives {} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        where_sql
+        "SELECT DISTINCT a.id {} {} ORDER BY a.created_at DESC LIMIT ? OFFSET ?",
+        from_sql, where_sql
     );
     let mut params = filter_params;
     params.push(Box::new(per_page));
@@ -1519,15 +1510,11 @@ pub fn import_archives_from_excel(path: String) -> Result<(usize, usize), String
     for (material, (box_name, tags)) in materials {
         let code = generate_archive_code(&tx, unknown_category_id)?;
         let archive_box_id = ensure_archive_box_by_name(&tx, &box_name)?;
-        let box_info = get_archive_box(&tx, archive_box_id)?;
-        let location = box_info
-            .as_ref()
-            .map(|(name, loc)| loc.clone().unwrap_or_else(|| name.clone()));
         tx.execute(
-            "INSERT INTO archives (code, title, category_id, location, keeper_id, status, quantity, description, photos,
-                                   archive_type, archive_box_id, box_name, file_path)
-             VALUES (?1, ?2, ?3, ?4, ?5, 'in_stock', 1, NULL, NULL, 'paper', ?6, ?7, NULL)",
-            rusqlite::params![code, material, unknown_category_id, location, unknown_keeper_id, archive_box_id, box_name],
+            "INSERT INTO archives (code, title, category_id, keeper_id, status, quantity, description, photos,
+                                   archive_type, archive_box_id, file_path)
+             VALUES (?1, ?2, ?3, ?4, 'in_stock', 1, NULL, NULL, 'paper', ?5, NULL)",
+            rusqlite::params![code, material, unknown_category_id, unknown_keeper_id, archive_box_id],
         )
         .map_err(|e| e.to_string())?;
         let archive_id = tx.last_insert_rowid();
@@ -1576,7 +1563,6 @@ mod tests {
         let detail = create_archive(CreateArchiveRequest {
             title: "测试档案".to_string(),
             category_id: 1,
-            location: Some("A柜".to_string()),
             keeper_id: Some(member.id),
             quantity: 1,
             description: None,

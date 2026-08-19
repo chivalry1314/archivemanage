@@ -220,7 +220,6 @@ export const listArchivesByTag = (tagId: number, page: number, perPage: number) 
 export interface CreateArchiveRequest {
   title: string;
   category_id: number;
-  location?: string;
   keeper_id?: number;
   quantity: number;
   description?: string;
@@ -236,7 +235,6 @@ export interface UpdateArchiveRequest {
   id: number;
   title: string;
   category_id: number;
-  location?: string;
   keeper_id?: number;
   quantity: number;
   description?: string;

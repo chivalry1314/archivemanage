@@ -39,18 +39,22 @@ pub fn create_archive_box(req: CreateArchiveBoxRequest) -> Result<ArchiveBox, St
 #[tauri::command]
 pub fn update_archive_box(req: UpdateArchiveBoxRequest) -> Result<ArchiveBox, String> {
     let db = db();
-    let conn = db.lock().map_err(|e| e.to_string())?;
+    let mut conn = db.lock().map_err(|e| e.to_string())?;
 
     let name = req.name.trim();
     if name.is_empty() {
         return Err("档案盒名称不能为空".to_string());
     }
 
-    conn.execute(
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute(
         "UPDATE archive_boxes SET name = ?1, location = ?2, note = ?3 WHERE id = ?4",
         rusqlite::params![name, req.location, req.note, req.id],
     )
     .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
 
     let box_record = conn
         .query_row(

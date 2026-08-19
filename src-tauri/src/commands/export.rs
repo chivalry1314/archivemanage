@@ -204,9 +204,9 @@ pub fn export_archives_csv() -> Result<String, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT a.code, a.title, COALESCE(ab.name, a.box_name) AS box_name, ac.name,
+            "SELECT a.code, a.title, ab.name AS box_name, ac.name,
                     GROUP_CONCAT(at.name, '、') AS tags,
-                    a.location, m.name, a.status, a.quantity, a.created_at
+                    COALESCE(ab.location, ab.name) AS location, m.name, a.status, a.quantity, a.created_at
              FROM archives a
              LEFT JOIN archive_boxes ab ON ab.id = a.archive_box_id
              LEFT JOIN archive_categories ac ON ac.id = a.category_id
@@ -347,9 +347,9 @@ pub fn export_archives_xlsx() -> Result<Vec<u8>, String> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT a.code, a.title, COALESCE(ab.name, a.box_name) AS box_name, ac.name,
+            "SELECT a.code, a.title, ab.name AS box_name, ac.name,
                     GROUP_CONCAT(at.name, '、') AS tags,
-                    a.location, m.name, a.status, a.quantity, a.created_at
+                    COALESCE(ab.location, ab.name) AS location, m.name, a.status, a.quantity, a.created_at
              FROM archives a
              LEFT JOIN archive_boxes ab ON ab.id = a.archive_box_id
              LEFT JOIN archive_categories ac ON ac.id = a.category_id

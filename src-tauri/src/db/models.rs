@@ -200,7 +200,6 @@ pub struct UpdateArchiveCategoryRequest {
 pub struct CreateArchiveRequest {
     pub title: String,
     pub category_id: i64,
-    pub location: Option<String>,
     pub keeper_id: Option<i64>,
     pub quantity: i32,
     pub description: Option<String>,
@@ -218,7 +217,6 @@ pub struct UpdateArchiveRequest {
     pub id: i64,
     pub title: String,
     pub category_id: i64,
-    pub location: Option<String>,
     pub keeper_id: Option<i64>,
     pub quantity: i32,
     pub description: Option<String>,

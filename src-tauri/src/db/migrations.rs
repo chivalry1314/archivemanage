@@ -229,4 +229,46 @@ pub const MIGRATIONS: &[(&str, &str)] = &[
     ("contracts_remark", r#"
     ALTER TABLE contracts ADD COLUMN remark TEXT;
     "#),
+
+    ("drop_archive_location_box_name", r#"
+    -- 为没有关联档案盒但仍有 box_name 的老数据补齐档案盒
+    INSERT OR IGNORE INTO archive_boxes (name)
+    SELECT DISTINCT TRIM(box_name) FROM archives
+    WHERE archive_box_id IS NULL AND box_name IS NOT NULL AND TRIM(box_name) <> '';
+
+    UPDATE archives
+    SET archive_box_id = (
+        SELECT id FROM archive_boxes WHERE archive_boxes.name = TRIM(archives.box_name)
+    )
+    WHERE archive_box_id IS NULL AND box_name IS NOT NULL AND TRIM(box_name) <> '';
+
+    CREATE TABLE archives_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        category_id INTEGER REFERENCES archive_categories(id),
+        keeper_id INTEGER REFERENCES members(id),
+        status TEXT CHECK(status IN ('in_stock','borrowed','damaged','destroyed')) DEFAULT 'in_stock',
+        quantity INTEGER DEFAULT 1,
+        description TEXT,
+        photos TEXT,
+        archive_type TEXT DEFAULT 'paper',
+        file_path TEXT,
+        archive_box_id INTEGER REFERENCES archive_boxes(id) ON DELETE SET NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT INTO archives_new
+    (id, code, title, category_id, keeper_id, status, quantity, description, photos, archive_type, file_path, archive_box_id, created_at)
+    SELECT id, code, title, category_id, keeper_id, status, quantity, description, photos, archive_type, file_path, archive_box_id, created_at
+    FROM archives;
+
+    DROP TABLE archives;
+    ALTER TABLE archives_new RENAME TO archives;
+
+    CREATE INDEX IF NOT EXISTS idx_archives_code ON archives(code);
+    CREATE INDEX IF NOT EXISTS idx_archives_category ON archives(category_id);
+    CREATE INDEX IF NOT EXISTS idx_archives_status ON archives(status);
+    CREATE INDEX IF NOT EXISTS idx_archives_box_id ON archives(archive_box_id);
+    "#),
 ];

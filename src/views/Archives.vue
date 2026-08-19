@@ -92,9 +92,7 @@ const archiveForm = ref({
   id: 0,
   title: "",
   category_id: null as number | null,
-  location: "",
   archive_box_id: null as number | null,
-  box_name: "",
   file_path: "",
   source_file_path: "",
   keeper_id: null as number | null,
@@ -106,6 +104,14 @@ const archiveForm = ref({
 const showBoxSelector = ref(false);
 const showAiAnalyzer = ref(false);
 const aiEnabled = ref(false);
+
+const selectedBox = computed(() =>
+  store.archiveBoxes.find((b) => b.id === archiveForm.value.archive_box_id)
+);
+const selectedBoxName = computed(() => selectedBox.value?.name || "");
+const selectedBoxLocation = computed(
+  () => selectedBox.value?.location || selectedBox.value?.name || ""
+);
 
 const borrowForm = ref({
   archive_id: 0,
@@ -129,9 +135,7 @@ const resetArchiveForm = () => {
     id: 0,
     title: "",
     category_id: null,
-    location: "",
     archive_box_id: null,
-    box_name: "",
     file_path: "",
     source_file_path: "",
     keeper_id: null,
@@ -264,9 +268,8 @@ const submitArchive = async () => {
   const payload = {
     title: archiveForm.value.title.trim(),
     category_id: archiveForm.value.category_id,
-    location: archiveForm.value.location.trim() || undefined,
     archive_box_id: archiveForm.value.archive_box_id || undefined,
-    box_name: archiveForm.value.box_name.trim() || undefined,
+    box_name: selectedBoxName.value || undefined,
     file_path: archiveForm.value.file_path.trim() || undefined,
     source_file_path: archiveForm.value.source_file_path.trim() || undefined,
     keeper_id: archiveForm.value.keeper_id || undefined,
@@ -414,9 +417,7 @@ const editArchive = (item: any) => {
     id: item.archive.id,
     title: item.archive.title,
     category_id: item.archive.category_id,
-    location: item.archive.location || "",
     archive_box_id: item.archive.archive_box_id || null,
-    box_name: item.archive.box_name || "",
     file_path: item.archive.file_path || "",
     source_file_path: "",
     keeper_id: item.archive.keeper_id || null,
@@ -431,16 +432,11 @@ const editArchive = (item: any) => {
 
 const onSelectBox = (box: any) => {
   archiveForm.value.archive_box_id = box.id;
-  archiveForm.value.box_name = box.name;
-  // 存放位置由档案盒自动带出：优先位置，未配置则用档案盒名称
-  archiveForm.value.location = box.location || box.name || "";
   showBoxSelector.value = false;
 };
 
 const clearSelectedBox = () => {
   archiveForm.value.archive_box_id = null;
-  archiveForm.value.box_name = "";
-  archiveForm.value.location = "";
 };
 
 const onAiSelectBox = (box: any) => {
@@ -998,7 +994,7 @@ onMounted(loadAll);
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-1">存放位置</label>
               <input
-                :value="archiveForm.location || '未选择档案盒'"
+                :value="selectedBoxLocation || '未选择档案盒'"
                 readonly
                 class="w-full px-4 py-2 border rounded-lg bg-slate-50 text-slate-700 focus:outline-none"
               />
@@ -1018,7 +1014,7 @@ onMounted(loadAll);
             <label class="block text-sm font-medium text-slate-700 mb-1">档案盒 *</label>
             <div class="flex items-center gap-3">
               <input
-                :value="archiveForm.box_name || '未选择档案盒'"
+                :value="selectedBoxName || '未选择档案盒'"
                 readonly
                 placeholder="点击右侧按钮选择档案盒"
                 class="flex-1 px-4 py-2 border rounded-lg bg-slate-50 text-slate-700 focus:outline-none"
