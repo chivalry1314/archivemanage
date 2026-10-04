@@ -16,7 +16,7 @@ import {
 import Pagination from "../components/Pagination.vue";
 import RecordDetailModal from "../components/RecordDetailModal.vue";
 import { showError } from "../utils/error";
-import { confirm } from "../utils/dialog";
+import { alert, confirm } from "../utils/dialog";
 import { useRecordPreview } from "../utils/recordPreview";
 
 const store = useAppStore();
@@ -99,8 +99,19 @@ const load = async () => {
   }
 };
 
+const validateForm = () => {
+  const missing: string[] = [];
+  if (!form.value.title.trim()) missing.push("任务名称");
+  if (!form.value.start_date) missing.push("开始日期");
+  if (missing.length > 0) {
+    alert(`请填写以下必填项：${missing.join("、")}`);
+    return false;
+  }
+  return true;
+};
+
 const submit = async () => {
-  if (!form.value.title.trim() || !form.value.start_date) return;
+  if (!validateForm()) return;
 
   const payload = {
     title: form.value.title.trim(),

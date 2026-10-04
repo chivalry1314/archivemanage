@@ -11,7 +11,7 @@ import {
 import Pagination from "../components/Pagination.vue";
 import RecordDetailModal from "../components/RecordDetailModal.vue";
 import { showError } from "../utils/error";
-import { confirm } from "../utils/dialog";
+import { alert, confirm } from "../utils/dialog";
 import { useRecordPreview } from "../utils/recordPreview";
 
 const store = useAppStore();
@@ -71,8 +71,16 @@ const load = async () => {
   }
 };
 
+const validateForm = () => {
+  if (!form.value.name.trim()) {
+    alert("请填写标签名称");
+    return false;
+  }
+  return true;
+};
+
 const submit = async () => {
-  if (!form.value.name.trim()) return;
+  if (!validateForm()) return;
 
   const payload = {
     name: form.value.name.trim(),

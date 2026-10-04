@@ -10,7 +10,7 @@ import {
 import Pagination from "../components/Pagination.vue";
 import RecordDetailModal from "../components/RecordDetailModal.vue";
 import { showError } from "../utils/error";
-import { confirm } from "../utils/dialog";
+import { alert, confirm } from "../utils/dialog";
 import { useRecordPreview } from "../utils/recordPreview";
 
 const store = useAppStore();
@@ -66,8 +66,19 @@ const load = async () => {
   }
 };
 
+const validateForm = () => {
+  const missing: string[] = [];
+  if (!form.value.name.trim()) missing.push("分类名称");
+  if (!form.value.code_prefix.trim()) missing.push("编号前缀");
+  if (missing.length > 0) {
+    alert(`请填写以下必填项：${missing.join("、")}`);
+    return false;
+  }
+  return true;
+};
+
 const submit = async () => {
-  if (!form.value.name.trim() || !form.value.code_prefix.trim()) return;
+  if (!validateForm()) return;
 
   const payload = {
     name: form.value.name.trim(),

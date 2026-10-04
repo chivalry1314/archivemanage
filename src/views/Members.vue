@@ -5,7 +5,7 @@ import { createMember, deleteMember, listMembersPaged, updateMember } from "../a
 import Pagination from "../components/Pagination.vue";
 import RecordDetailModal from "../components/RecordDetailModal.vue";
 import { showError } from "../utils/error";
-import { confirm } from "../utils/dialog";
+import { alert, confirm } from "../utils/dialog";
 import { useRecordPreview } from "../utils/recordPreview";
 
 const store = useAppStore();
@@ -63,8 +63,16 @@ const load = async () => {
   }
 };
 
+const validateForm = () => {
+  if (!form.value.name.trim()) {
+    alert("请填写姓名");
+    return false;
+  }
+  return true;
+};
+
 const submit = async () => {
-  if (!form.value.name.trim()) return;
+  if (!validateForm()) return;
 
   try {
     if (editing.value) {

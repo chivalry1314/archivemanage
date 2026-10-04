@@ -83,7 +83,10 @@ const adopt = () => {
 };
 
 const createAndAdopt = async () => {
-  if (!newBoxForm.value.name.trim()) return;
+  if (!newBoxForm.value.name.trim()) {
+    showError(new Error("请填写档案盒名称"));
+    return;
+  }
   try {
     const box = await createArchiveBox({
       name: newBoxForm.value.name.trim(),

@@ -34,7 +34,7 @@ import * as XLSX from "xlsx";
 import Pagination from "../components/Pagination.vue";
 import RecordDetailModal from "../components/RecordDetailModal.vue";
 import { showError } from "../utils/error";
-import { confirm } from "../utils/dialog";
+import { alert, confirm } from "../utils/dialog";
 import { useRecordPreview } from "../utils/recordPreview";
 
 const store = useAppStore();
@@ -250,8 +250,20 @@ const selectTag = (tagId: number) => {
   loadTagTreeArchives();
 };
 
+const validateArchiveForm = () => {
+  const missing: string[] = [];
+  if (!archiveForm.value.title.trim()) missing.push("档案名称");
+  if (!archiveForm.value.category_id) missing.push("分类");
+  if (!archiveForm.value.archive_box_id) missing.push("档案盒");
+  if (missing.length > 0) {
+    alert(`请填写以下必填项：${missing.join("、")}`);
+    return false;
+  }
+  return true;
+};
+
 const submitArchive = async () => {
-  if (!archiveForm.value.title.trim() || !archiveForm.value.category_id) return;
+  if (!validateArchiveForm()) return;
 
   if (
     archiveForm.value.source_file_path.trim() &&
@@ -578,13 +590,25 @@ const openBorrowForm = (item: any) => {
   showBorrowForm.value = true;
 };
 
+const validateBorrowForm = () => {
+  const missing: string[] = [];
+  if (!borrowForm.value.borrower_id) missing.push("借阅人");
+  if (!borrowForm.value.borrow_date) missing.push("借阅日期");
+  if (!borrowForm.value.due_date) missing.push("应还日期");
+  if (missing.length > 0) {
+    alert(`请填写以下必填项：${missing.join("、")}`);
+    return false;
+  }
+  return true;
+};
+
 const submitBorrow = async () => {
-  if (!borrowForm.value.borrower_id || !borrowForm.value.due_date) return;
+  if (!validateBorrowForm()) return;
 
   try {
     await createArchiveBorrow({
       archive_id: borrowForm.value.archive_id,
-      borrower_id: borrowForm.value.borrower_id,
+      borrower_id: borrowForm.value.borrower_id!,
       purpose: borrowForm.value.purpose.trim() || undefined,
       borrow_date: borrowForm.value.borrow_date,
       due_date: borrowForm.value.due_date,
@@ -625,15 +649,25 @@ const openBorrowEditForm = (item: any) => {
   showBorrowEditForm.value = true;
 };
 
-const submitBorrowEdit = async () => {
-  if (!borrowEditForm.value.borrower_id || !borrowEditForm.value.borrow_date || !borrowEditForm.value.due_date) {
-    return;
+const validateBorrowEditForm = () => {
+  const missing: string[] = [];
+  if (!borrowEditForm.value.borrower_id) missing.push("借阅人");
+  if (!borrowEditForm.value.borrow_date) missing.push("借阅日期");
+  if (!borrowEditForm.value.due_date) missing.push("应还日期");
+  if (missing.length > 0) {
+    alert(`请填写以下必填项：${missing.join("、")}`);
+    return false;
   }
+  return true;
+};
+
+const submitBorrowEdit = async () => {
+  if (!validateBorrowEditForm()) return;
 
   try {
     await updateArchiveBorrow({
       id: borrowEditForm.value.id,
-      borrower_id: borrowEditForm.value.borrower_id,
+      borrower_id: borrowEditForm.value.borrower_id!,
       purpose: borrowEditForm.value.purpose.trim() || undefined,
       borrow_date: borrowEditForm.value.borrow_date,
       due_date: borrowEditForm.value.due_date,
