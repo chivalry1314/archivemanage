@@ -12,6 +12,9 @@ hero:
     - theme: alt
       text: GitHub 仓库
       link: https://github.com/chivalry1314/archivemanage
+    - theme: alt
+      text: 百度网盘下载
+      link: https://pan.baidu.com/s/1K1VemxEwDa6aVRVonr_4CQ?pwd=vty7
 
 features:
   - title: 仪表盘
